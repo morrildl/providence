@@ -18,6 +18,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver android:label="NewPhotoReceiver" android:name=".photos.NewPhotoReceiver">
+            <intent-filter>
+                <action android:name="android.hardware.action.NEW_PICTURE"/>
+                <data android:mimeType="image/*"/>
+            </intent-filter>
+        </receiver>
+
+        <service android:name=".photos.PhotoUploaderService" android:exported="false"/>
     </application>
 
 </manifest>
