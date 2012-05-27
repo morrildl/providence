@@ -1,3 +1,3 @@
-out
 go/monitor
-go/*sqlite3
+go/*.sqlite3
+arduino/out
