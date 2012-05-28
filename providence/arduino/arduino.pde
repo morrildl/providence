@@ -15,7 +15,7 @@
  */
 
 #define STATE_DUMP_INTERVAL 10000
-#define DEBOUNCE_MILLIS 50
+#define DEBOUNCE_MILLIS 75
 
 // FSM state definitions
 #define STATE_START 0
@@ -137,10 +137,11 @@ void update_state() {
       if (DIGITAL_DEBOUNCE[i] != 0) {
         if ((current_millis - DIGITAL_DEBOUNCE[i]) > DEBOUNCE_MILLIS) {
           DIGITAL_DEBOUNCE[i] = 0;
+          Serial.print("{\"Which\":\"");
           Serial.print(DIGITAL_PIN_NAMES[i]);
-          Serial.print("=");
-          Serial.println(reading == LOW ? "TRIP" : "RESET");
-          Serial.println("");
+          Serial.print("\",\"Action\":");
+          Serial.print(digitalRead(i));
+          Serial.println("}");
         }
       }
     }
@@ -165,11 +166,12 @@ void dump_state() {
     if (strcmp(DIGITAL_PIN_NAMES[i], "") == 0) {
       continue;
     }
+    Serial.print("{\"Name\":\"");
     Serial.print(DIGITAL_PIN_NAMES[i]);
-    Serial.print("=");
-    Serial.println(digitalRead(i) == LOW ? "TRIP" : "RESET");
+    Serial.print("\",\"Action\":\"");
+    Serial.print(digitalRead(i) == LOW ? "TRIP" : "RESET");
+    Serial.println("\"}");
   }
-  Serial.println("");
 }
 
 void loop() {
@@ -202,7 +204,7 @@ void loop() {
 
   update_state();
   if ((current_millis - state_dump_time) > STATE_DUMP_INTERVAL) {
-    dump_state();
+    //dump_state();
     state_dump_time = current_millis;
   }
 }
