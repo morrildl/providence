@@ -1,12 +1,20 @@
 package main
 import (
-  "fmt"
   "bufio"
-  "os"
+  "bytes"
   "database/sql"
   "encoding/json"
-  _ "github.com/mattn/go-sqlite3"
+  "fmt"
+  "net/http"
+  "io/ioutil"
+  "os"
   "time"
+  _ "github.com/mattn/go-sqlite3"
+)
+
+const (
+  ESCALATOR_URL = "http://medea:9000/escalate"
+  ESCALATOR_MIMETYPE = "text/json"
 )
 
 type sensorType int
@@ -166,7 +174,24 @@ func monitor(incoming chan event, outgoing chan event) {
 func escalator(incoming chan event, outgoing chan event) {
   for {
     select {
-    case <- incoming:
+    case e := <-incoming:
+      j, ok := json.Marshal(e)
+      if ok == nil {
+        resp, err := http.Post(ESCALATOR_URL, ESCALATOR_MIMETYPE, bytes.NewReader(j))
+        if err != nil {
+          fmt.Println("HTTP FAIL", err)
+          break
+        }
+        defer resp.Body.Close()
+        body, err := ioutil.ReadAll(resp.Body)
+        if err != nil && len(body) > 0 {
+          fmt.Println("HTTP response", body)
+        } else {
+          fmt.Println("HTTP error or empty response", err)
+        }
+      } else {
+        fmt.Println("json FAIL", ok)
+      }
     }
   }
 }
