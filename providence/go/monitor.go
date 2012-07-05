@@ -5,16 +5,13 @@ import (
   "database/sql"
   "encoding/json"
   "fmt"
-  "net/http"
   "io/ioutil"
+  "log"
+  "net/http"
   "os"
+  "strings"
   "time"
   _ "github.com/mattn/go-sqlite3"
-)
-
-const (
-  ESCALATOR_URL = "http://medea:9000/escalate"
-  ESCALATOR_MIMETYPE = "text/json"
 )
 
 type sensorType int
@@ -168,29 +165,95 @@ func monitor(incoming chan event, outgoing chan event) {
   }
 }
 
+type gcmRequest struct {
+  RegistrationIds []string `json:"registration_ids"`
+  Data interface{} `json:"data"`
+}
+
+const (
+  GCM_URL = "https://android.googleapis.com/gcm/send"
+  GCM_MIMETYPE = "application/json"
+  SENDER_ID = "25235963451"
+  OAUTH_TOKEN = "AIzaSyDGBuD9xLI0weiV0nz7Z9AT76EyzSMXk7Y"
+)
+
+type gcmResponseResults struct {
+  MessageId string `json:"message_id"`
+  RegistrationId string `json:"registration_id"`
+  Error string `json:"error"`
+}
+
+type gcmResponse struct {
+  MulticastId uint64 `json:"multicast_id"`
+  Success int `json:"success"`
+  Failure int `json:"failure"`
+  CanonicalIds int `json:"canonical_ids"`
+  Results []gcmResponseResults `json:"results"`
+}
+
 /* Looks for higher-level event types and escalates them for
  * human review. Should only be registered for ajar and anomalous.
  */
 func escalator(incoming chan event, outgoing chan event) {
+  regIds := make([]string, 0)
+
+  regListener := make(chan string, 5)
+  go func (regChan chan string) {
+    http.HandleFunc("/", func(writer http.ResponseWriter, req *http.Request) {
+      body, err := ioutil.ReadAll(req.Body)
+      if err != nil {
+        log.Print("HTTP request read failure", err)
+      } else {
+        fmt.Println(string(body), "\n")
+        fmt.Println(strings.Split(string(body), "\n"))
+        for _, s := range strings.Split(string(body), "\n") {
+          regChan <- s
+        }
+      }
+    })
+    log.Print(http.ListenAndServe(":4280", nil))
+  }(regListener)
+
   for {
     select {
-    case e := <-incoming:
-      j, ok := json.Marshal(e)
+    case regId := <-regListener:
+      log.Print("Received regId: " + regId)
+      regIds = append(regIds, regId)
+    case ev := <-incoming:
+      if len(regIds) < 1 {
+        log.Print("No registered devices, skipping event", ev)
+        break
+      }
+      j, ok := json.Marshal(gcmRequest{regIds, ev})
       if ok == nil {
-        resp, err := http.Post(ESCALATOR_URL, ESCALATOR_MIMETYPE, bytes.NewReader(j))
+        log.Print(string(j))
+        req, err := http.NewRequest("POST", GCM_URL, bytes.NewReader(j))
         if err != nil {
-          fmt.Println("HTTP FAIL", err)
+          fmt.Println("Failed to create GCM HTTP request", err)
+          break
+        }
+        req.Header.Add("Authorization", "key=" + OAUTH_TOKEN)
+        req.Header.Add("Content-Type", GCM_MIMETYPE)
+        client := &http.Client{}
+        resp, err := client.Do(req)
+        if err != nil {
+          fmt.Println("GCM request failed during execution", err)
           break
         }
         defer resp.Body.Close()
         body, err := ioutil.ReadAll(resp.Body)
-        if err != nil && len(body) > 0 {
-          fmt.Println("HTTP response", body)
+        if err == nil && len(body) > 0 {
+          var jsonResponse gcmResponse
+          jsonErr := json.Unmarshal(body, &jsonResponse)
+          if jsonErr != nil {
+            fmt.Println("JSON unmarshal failure on GCM response", jsonErr)
+          }
+          fmt.Printf("%+v\n", jsonResponse)
         } else {
-          fmt.Println("HTTP error or empty response", err)
+          fmt.Println("HTTP error or empty response from GCM", err, err == nil, len(body), body, string(body))
         }
       } else {
-        fmt.Println("json FAIL", ok)
+        fmt.Println("JSON failure during encode for GCM", ok)
       }
     }
   }

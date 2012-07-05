@@ -18,14 +18,15 @@ public class GCMIntentService extends GCMBaseIntentService {
 
 	@Override
 	protected void onError(Context context, String message) {
-		Log.e("IntentService", message);
+		Log.e("IntentService.onError", message);
 	}
 
 	@Override
 	protected void onMessage(Context context, Intent intent) {
 		Intent i = new Intent(context, LiferActivity.class);
 		i.putExtras(intent.getExtras());
-		PendingIntent pi = PendingIntent.getActivity(context, 42, i, 0);
+		PendingIntent pi = PendingIntent.getActivity(context, 42, i,
+				PendingIntent.FLAG_UPDATE_CURRENT);
 		Notification n = (new Notification.Builder(context))
 				.setContentTitle("Event fired").setContentIntent(pi)
 				.setSmallIcon(android.R.drawable.ic_delete).setAutoCancel(true)
