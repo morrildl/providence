@@ -81,9 +81,6 @@ func recorder(incoming chan event, outgoing chan event) {
   for {
     event := <-incoming
     insert.Exec(event.Which, event.Action)
-    if err != nil {
-      fmt.Println(err)
-    }
   }
 }
 
@@ -105,7 +102,7 @@ func monitor(incoming chan event, outgoing chan event) {
   weekends := []time.Weekday{time.Saturday, time.Sunday}
   windows := []eventWindow{
     eventWindow{7, 30, 2 * time.Hour + 30 * time.Minute, workdays[:]},
-    eventWindow{5, 30, 4 * time.Hour + 30 * time.Minute, workdays[:]},
+    eventWindow{17, 30, 4 * time.Hour + 30 * time.Minute, workdays[:]},
     eventWindow{9,  0, 1 * time.Hour, weekends[:]}, // TODO: remove
     //eventWindow{9,  0, 11 * time.Hour, weekends[:]},
   }
@@ -195,8 +192,78 @@ type gcmResponse struct {
  * human review. Should only be registered for ajar and anomalous.
  */
 func escalator(incoming chan event, outgoing chan event) {
-  regIds := make([]string, 0)
+  // populate the map of known regIds
+  regIds := make(map[string]int)
+  db, err := sql.Open("sqlite3", "./events.sqlite3")
+  if err != nil {
+    log.Print("ERROR: escalator failed opening events.sqlite3")
+    return
+  }
+  defer db.Close()
+  rows, err := db.Query("select * from reg_ids")
+  if err != nil {
+    log.Print("ERROR: escalator failed to unmarshal known regIds")
+    return
+  }
+  for rows.Next() {
+    var regId string
+    rows.Scan(&regId)
+    regIds[regId] = 0
+  }
 
+  // spin off a thread to keep the database up to date
+  type regIdUpdate struct {
+    RegId string
+    CanonicalRegId string
+  }
+  regIdUpdateChan := make(chan regIdUpdate)
+  go func (updateChan chan regIdUpdate) {
+    insertStmt, err := db.Prepare("insert or ignore into reg_ids values (?)")
+    if err != nil {
+      log.Print("regId updater failed to prepare insert", err)
+    }
+    defer insertStmt.Close()
+    updateStmt, err := db.Prepare("update reg_ids set reg_id=? where reg_id=?")
+    if err != nil {
+      log.Print("regId updater failed to prepare update", err)
+    }
+    defer updateStmt.Close()
+    select {
+    case update := <-updateChan:
+      if update.CanonicalRegId != "" {
+        tx, err := db.Begin()
+        if err != nil {
+          log.Print("WARNING: failed to start a transaction", err)
+          break
+        }
+        _, err = tx.Stmt(insertStmt).Exec(update.RegId)
+        if err != nil {
+          log.Print("WARNING: failed on update insert", err)
+          tx.Rollback()
+          break
+        }
+        _, err = tx.Stmt(updateStmt).Exec(update.CanonicalRegId, update.RegId)
+        if err != nil {
+          log.Print("WARNING: failed on update update", err)
+          tx.Rollback()
+          break
+        }
+        err = tx.Commit()
+        if err != nil {
+          log.Print("WARNING: failed on update commit", err)
+          tx.Rollback()
+          break
+        }
+      } else {
+        _, err = insertStmt.Exec(update.RegId)
+        if err != nil {
+          log.Print("WARNING: failed on insert", err)
+        }
+      }
+    }
+  }(regIdUpdateChan)
+
+  // spin off a thread to listen for registration IDs
   regListener := make(chan string, 5)
   go func (regChan chan string) {
     http.HandleFunc("/", func(writer http.ResponseWriter, req *http.Request) {
@@ -214,22 +281,32 @@ func escalator(incoming chan event, outgoing chan event) {
     log.Print(http.ListenAndServe(":4280", nil))
   }(regListener)
 
+  // the reason we're here: check each raw event and synthesize higher level
+  // events as appropriate
+  var regIdList []string
+  for k := range regIds {
+    regIdList = append(regIdList, k)
+  }
   for {
     select {
     case regId := <-regListener:
       log.Print("Received regId: " + regId)
-      regIds = append(regIds, regId)
+      regIds[regId] = 0
+      regIdUpdateChan <- regIdUpdate{regId, ""}
+      regIdList = []string{}
+      for k := range regIds {
+        regIdList = append(regIdList, k)
+      }
     case ev := <-incoming:
       if len(regIds) < 1 {
         log.Print("No registered devices, skipping event", ev)
         break
       }
-      j, ok := json.Marshal(gcmRequest{regIds, ev})
+      j, ok := json.Marshal(gcmRequest{regIdList, ev})
       if ok == nil {
-        log.Print(string(j))
         req, err := http.NewRequest("POST", GCM_URL, bytes.NewReader(j))
         if err != nil {
-          fmt.Println("Failed to create GCM HTTP request", err)
+          log.Print("Failed to create GCM HTTP request", err)
           break
         }
         req.Header.Add("Authorization", "key=" + OAUTH_TOKEN)
@@ -237,7 +314,7 @@ func escalator(incoming chan event, outgoing chan event) {
         client := &http.Client{}
         resp, err := client.Do(req)
         if err != nil {
-          fmt.Println("GCM request failed during execution", err)
+          log.Print("GCM request failed during execution", err)
           break
         }
         defer resp.Body.Close()
@@ -246,9 +323,21 @@ func escalator(incoming chan event, outgoing chan event) {
           var jsonResponse gcmResponse
           jsonErr := json.Unmarshal(body, &jsonResponse)
           if jsonErr != nil {
-            fmt.Println("JSON unmarshal failure on GCM response", jsonErr)
+            log.Print("JSON unmarshal failure on GCM response", jsonErr)
           }
-          fmt.Printf("%+v\n", jsonResponse)
+          log.Print("%+v\n", jsonResponse)
+          for i, oldId := range regIdList {
+            result := jsonResponse.Results[i]
+            if result.RegistrationId != "" {
+              regIdUpdateChan <- regIdUpdate{oldId, result.RegistrationId}
+              delete(regIds, oldId)
+              regIds[result.RegistrationId] = 0
+              regIdList = []string{}
+              for k := range regIds {
+                regIdList = append(regIdList, k)
+              }
+            }
+          }
         } else {
           fmt.Println("HTTP error or empty response from GCM", err, err == nil, len(body), body, string(body))
         }
