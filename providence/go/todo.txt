@@ -1,9 +1,10 @@
-- persistence for reg IDs
-- GCM details (canonical IDs, etc.)
 - smarter notification behaviors for ajar & anomalies
   - policies?
   - coalesce GCM notifications?
-- build in a heartbeat -- i.e. for phone to know that monitor is offline
-  - may be a reason to use GCE/GAE
+- handle GCM errors
 - some kind of auth system for reg IDs
 - HTTPS
+
+- DONE - persistence for reg IDs
+- DONE - build in a heartbeat -- i.e. for phone to know that monitor is offline
+- DONE - GCM details (canonical IDs, etc.)
