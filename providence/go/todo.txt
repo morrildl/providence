@@ -8,3 +8,4 @@
 - DONE - persistence for reg IDs
 - DONE - build in a heartbeat -- i.e. for phone to know that monitor is offline
 - DONE - GCM details (canonical IDs, etc.)
+- DONE - set the USB serial baud etc. settings so I don't have to run minicom (kludged anyway)

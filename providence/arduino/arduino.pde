@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Dan Morrill
+ * Copyright 2012 Dan Morrill
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ void setup() {
     pinMode(i, INPUT);
     ANALOG_PIN_STATE[i] = 0;
   }
-  Serial.begin(115200);
+  Serial.begin(9600);
 }
 
 // clears all state value and drops back to the start state
