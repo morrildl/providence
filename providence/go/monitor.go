@@ -16,12 +16,6 @@ import (
   _ "github.com/mattn/go-sqlite3"
 )
 
-// TODO: detect handlers automatically by inspecting signatures & tags
-// TODO: move the various handlers to separate Go packages?
-// TODO: add a proper configuration file
-// TODO: devise a more robust notification frequency & policy (e.g. ajar vs. long_ajar? is the distinction necessary? etc.)
-// TODO: devise more robust coalescing behavior
-
 type ajarAction int
 const (
   ALARM ajarAction = iota
