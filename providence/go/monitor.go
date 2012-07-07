@@ -4,11 +4,13 @@ import (
   "bytes"
   "database/sql"
   "encoding/json"
+  "flag"
   "io"
   "io/ioutil"
   "log"
   "net/http"
   "os"
+  "strconv"
   "strings"
   "time"
   _ "github.com/mattn/go-sqlite3"
@@ -20,48 +22,102 @@ import (
 // TODO: devise a more robust notification frequency & policy (e.g. ajar vs. long_ajar? is the distinction necessary? etc.)
 // TODO: devise more robust coalescing behavior
 
+type ajarAction int
+const (
+  ALARM ajarAction = iota
+  RECORD
+  NOTIFY
+)
+/* Global config structure. Should be populated before any goroutines are
+ * spawned, because it's not synchronized. Similarly, should be read-only
+ * after first populated. */
+var config struct {
+  Tty string
+  HttpPort int
+  DatabasePath string
+  SensorNames []struct {
+    Id string
+    Name string
+  }
+  AjarThreshold int
+  AjarRules []struct {
+    Threshold int
+    Action []ajarAction
+  }
+  ExclusionIntervals []struct {
+    Hour int
+    Min int
+    Duration int
+    DaysOfWeek []time.Weekday // int, 0 - 6, 0 = Sunday
+  }
+}
+func loadConfig() {
+  var flagPort int
+  var flagTty string
+  var flagDatabase string
+  var configFile string
+  flag.StringVar(&configFile, "config", "./monitor.json", "fully qualified path to the JSON config file")
+  flag.IntVar(&flagPort, "port", 4280, "port of the HTTP server")
+  flag.StringVar(&flagTty, "tty", "/dev/ttyUSB0", "USB TTY file connected to the Arduino")
+  flag.StringVar(&flagDatabase, "database", "./monitor.sqlite3", "fully qualified path to the sqlite3 database file")
+  flag.Parse()
+
+  file, err := os.Open(configFile)
+  if err != nil {
+    log.Fatal("loadConfig failed opening the config file '" + configFile + "'", err)
+  }
+  jsonText, err := ioutil.ReadAll(file)
+  if err != nil {
+    log.Fatal("loadConfig failed reading the config file '" + configFile + "'", err)
+  }
+  err = json.Unmarshal([]byte(jsonText), &config)
+  if flagTty != "" {
+    config.Tty = flagTty
+  }
+  if flagPort > 0 {
+    config.HttpPort = flagPort
+  }
+  if flagDatabase != "" {
+    config.DatabasePath = flagDatabase
+  }
+}
+
+/* Constants representing the physical nature of the sensor hardware */
 type sensorType int
 const (
   window = iota
   door
   motion
 )
-
+/* Constants representing the kinds of events that can happen on sensors. Some
+ * of these are electrical(trip, reset), others are abstract (door is ajar).
+ */
 type eventCode int
 const (
-  trip = iota
-  reset
-  ajar
-  anomaly
+  TRIP = iota
+  RESET
+  AJAR
+  AJAR_RESOLVED
+  ANOMALY
 )
-
+/* Represents a monitorable event that has occurred. */
 type event struct {
   Which string
   Type sensorType
   Action eventCode
-}
-
-type eventWindow struct {
-  hour int
-  minute int
-  duration time.Duration
-  dows []time.Weekday
-}
-
-type tripRecord struct {
-  when time.Time
-  next_send time.Duration
+  // TOOD: timestamp?
 }
 
 /* Reads a USB TTY looking for JSON messages from a hardware monitor and
-injects low-level (trip and reset) eventCodes into the outgoing channel. Never
-reads from 'incoming'; accordingly, should never be registered for any message
-types or it will eventually deadlock when the channel buffer fills.
+ * injects low-level (trip and reset) eventCodes into the outgoing channel.
+ * Never reads from 'incoming'; accordingly, should never be registered for
+ * any message types or it will eventually deadlock when the channel buffer
+ * fills.
  */
 func ttyreader(incoming chan event, outgoing chan event) {
-  file, err := os.Open("/dev/ttyUSB0")
+  file, err := os.Open(config.Tty)
   if err != nil {
-    log.Fatal("Error opening /dev/ttyUSB0, aborting ", err)
+    log.Fatal("Error opening ", config.Tty, ", aborting ", err)
     return
   }
   reader := bufio.NewReader(file)
@@ -77,9 +133,9 @@ func ttyreader(incoming chan event, outgoing chan event) {
  * eventCodes. Never sends anything to the outgoing channel.
  */
 func recorder(incoming chan event, outgoing chan event) {
-  db, err := sql.Open("sqlite3", "./events.sqlite3")
+  db, err := sql.Open("sqlite3", config.DatabasePath)
   if err != nil {
-    log.Print("ERROR: recorder failed to open evets.sqlite3 ", err)
+    log.Print("ERROR: recorder failed to open ", config.DatabasePath, err)
   }
   defer db.Close()
   insert, err := db.Prepare("insert into events (name, value) values (?, ?)")
@@ -102,19 +158,30 @@ func recorder(incoming chan event, outgoing chan event) {
  * detection. Should only be registered for low-level events.
  */
 func monitor(incoming chan event, outgoing chan event) {
+  // local structs used in synthesizing human-meaningful events from raw events
+  type timeWindow struct {
+    hour int
+    minute int
+    duration time.Duration
+    dows []time.Weekday
+  }
+  type tripRecord struct {
+    when time.Time
+    nextSend time.Duration
+  }
+
+  // initialize the structs representing exclusion windows
   workdays := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday}
   weekends := []time.Weekday{time.Saturday, time.Sunday}
-  windows := []eventWindow{
-    eventWindow{7, 30, 2 * time.Hour + 30 * time.Minute, workdays[:]},
-    eventWindow{17, 30, 4 * time.Hour + 30 * time.Minute, workdays[:]},
-    eventWindow{9,  0, 1 * time.Hour, weekends[:]}, // TODO: remove
-    //eventWindow{9,  0, 11 * time.Hour, weekends[:]},
+  windows := []timeWindow{
+    timeWindow{7, 30, 2 * time.Hour + 30 * time.Minute, workdays[:]},
+    timeWindow{17, 30, 4 * time.Hour + 30 * time.Minute, workdays[:]},
+    timeWindow{9,  0, 1 * time.Hour, weekends[:]}, // TODO: remove
+    //timeWindow{9,  0, 11 * time.Hour, weekends[:]},
   }
-  // TODO ajar_threshold := 5 * time.Minute
-  // TODO resend_frequency := 10 * time.Minute
-  ajar_threshold := 5 * time.Second
-  resend_frequency := 1 * time.Minute
-  last_trips := make(map[string]*tripRecord)
+  ajarThreshold := 5 * time.Second
+  resendFrequency := 1 * time.Minute
+  lastTrips := make(map[string]*tripRecord)
   ticker := time.Tick(1 * time.Second)
   for {
     select {
@@ -122,15 +189,15 @@ func monitor(incoming chan event, outgoing chan event) {
       now := time.Now()
 
       // timestamp trips for ajar-detection, and clear on resets
-      if e.Action == trip {
-        last_trips[e.Which] = &tripRecord{now, ajar_threshold}
-      } else if e.Action == reset {
-        delete(last_trips, e.Which)
+      if e.Action == TRIP {
+        lastTrips[e.Which] = &tripRecord{now, ajarThreshold}
+      } else if e.Action == RESET {
+        delete(lastTrips, e.Which)
       }
 
       // check trips against exclusion intervals for anomalous events
-      if e.Action == trip {
-        in_window := false
+      if e.Action == TRIP {
+        inWindow := false
         for _, w := range windows {
           legit := false
           for _, dow := range w.dows {
@@ -145,21 +212,21 @@ func monitor(incoming chan event, outgoing chan event) {
           start := time.Date(now.Year(), now.Month(), now.Day(), w.hour, w.minute, 0, 0, time.Local)
           end := start.Add(w.duration)
           if now.After(start) && now.Before(end) {
-            in_window = true
+            inWindow = true
             break
           }
         }
-        if !in_window {
-          outgoing <- event{e.Which, 0, anomaly}
+        if !inWindow {
+          outgoing <- event{e.Which, 0, ANOMALY}
         }
       }
 
     case <- ticker:
       // once per second, check whether anything is (still) Ajar & (re)transmit if it's time to
-      for which, last := range last_trips {
-        if time.Since(last.when) > ajar_threshold && time.Since(last.when) > last.next_send {
-          last.next_send += resend_frequency
-          outgoing <- event{which, 0, ajar}
+      for which, last := range lastTrips {
+        if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.nextSend {
+          last.nextSend += resendFrequency
+          outgoing <- event{which, 0, AJAR}
         }
       }
     }
@@ -179,9 +246,9 @@ func regIdPersisterEscalatorHelper() chan regIdUpdate {
   updateChan := make(chan regIdUpdate)
 
   go func (updateChan chan regIdUpdate) {
-    db, err := sql.Open("sqlite3", "./events.sqlite3")
+    db, err := sql.Open("sqlite3", config.DatabasePath)
     if err != nil {
-      log.Fatal("ERROR: escalator failed opening events.sqlite3")
+      log.Fatal("ERROR: escalator failed opening ", config.DatabasePath)
       return
     }
     defer db.Close()
@@ -299,7 +366,7 @@ func escalatorHttpHelper() chan regIdRequest {
     })
 
     // listen on the configured port
-    log.Print(http.ListenAndServe(":4280", nil))
+    log.Print(http.ListenAndServe(":" + strconv.Itoa(config.HttpPort), nil))
   }(regIdRequestChan)
   return regIdRequestChan
 }
@@ -314,9 +381,9 @@ func escalatorHttpHelper() chan regIdRequest {
  */
 func loadKnownRegIds() map[string]int {
   regIds := make(map[string]int)
-  db, err := sql.Open("sqlite3", "./events.sqlite3")
+  db, err := sql.Open("sqlite3", config.DatabasePath)
   if err != nil {
-    log.Fatal("ERROR: escalator failed opening events.sqlite3")
+    log.Fatal("ERROR: escalator failed opening ", config.DatabasePath)
     return nil
   }
   defer db.Close()
@@ -466,14 +533,16 @@ type handler struct {
 }
 
 func main() {
+  loadConfig()
+
   events := make(chan event, 10)
 
   // make a struct for each handler function, mapping it to events it wants to know about
   handlers := []handler{
     handler{ttyreader, make(chan event, 10), make(map[eventCode]int)}, // no registrations
-    handler{recorder, make(chan event, 10), map[eventCode]int{trip: 1, reset: 1, ajar: 1, anomaly: 1}},
-    handler{monitor, make(chan event, 10), map[eventCode]int{trip: 1, reset: 1}},
-    handler{gcmEscalator, make(chan event, 10), map[eventCode]int{ajar: 1, anomaly: 1}},
+    handler{recorder, make(chan event, 10), map[eventCode]int{TRIP: 1, RESET: 1, AJAR: 1, ANOMALY: 1}},
+    handler{monitor, make(chan event, 10), map[eventCode]int{TRIP: 1, RESET: 1}},
+    handler{gcmEscalator, make(chan event, 10), map[eventCode]int{AJAR: 1, ANOMALY: 1}},
   }
   for _, h := range handlers {
     go h.f(h.ch, events)
@@ -482,7 +551,7 @@ func main() {
   // simply loop forever, sending generated events to the listeners who want to hear them
   for {
     evt := <-events
-    log.Print(evt.Which + " ", map[eventCode]string{trip: "Tripped", reset: "Reset", ajar: "Ajar", anomaly: "Anomaly"}[evt.Action])
+    log.Print(evt.Which + " ", map[eventCode]string{TRIP: "Tripped", RESET: "Reset", AJAR: "Ajar", ANOMALY: "Anomaly"}[evt.Action])
     for _, h := range handlers {
       _, ok := h.eventCodes[evt.Action]
       if ok {
