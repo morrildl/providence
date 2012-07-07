@@ -1,1 +1,5 @@
-github.com/mattn/go-sqlite3
+The files here are Copyright 2012 by Dan Morrill. All rights reserved.
+There is NO grant of license for any purpose.
+
+
+SQLite driver from: github.com/mattn/go-sqlite3
