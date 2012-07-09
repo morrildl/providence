@@ -1,5 +1,0 @@
-{
-  "Tty": "/dev/USB0",
-  "HttpPort": 4280,
-  "DatabasePath": "./monitor.sqlite3",
-}

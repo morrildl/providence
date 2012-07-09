@@ -4,3 +4,4 @@ test.go
 tmp.*
 monitor
 *.sqlite3
+monitor.json

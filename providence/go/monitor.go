@@ -29,19 +29,18 @@ var config struct {
   Tty string
   HttpPort int
   DatabasePath string
-  SensorNames []struct {
-    Id string
-    Name string
-  }
-  AjarThreshold int
+  MockTty bool
+  SensorNames map[string]string
+  SensorTypes map[string]sensorType
+  AjarThreshold time.Duration
   AjarRules []struct {
-    Threshold int
-    Action []ajarAction
+    Interval string
+    Actions []ajarAction
+    Repeating bool
   }
   ExclusionIntervals []struct {
-    Hour int
-    Min int
-    Duration int
+    Start string
+    Duration string
     DaysOfWeek []time.Weekday // int, 0 - 6, 0 = Sunday
   }
 }
@@ -50,10 +49,12 @@ func loadConfig() {
   var flagTty string
   var flagDatabase string
   var configFile string
+  var mockTty bool
   flag.StringVar(&configFile, "config", "./monitor.json", "fully qualified path to the JSON config file")
   flag.IntVar(&flagPort, "port", 4280, "port of the HTTP server")
   flag.StringVar(&flagTty, "tty", "/dev/ttyUSB0", "USB TTY file connected to the Arduino")
   flag.StringVar(&flagDatabase, "database", "./monitor.sqlite3", "fully qualified path to the sqlite3 database file")
+  flag.BoolVar(&mockTty, "mocktty", false, "use an HTTP server on :4281 instead of a TTY")
   flag.Parse()
 
   file, err := os.Open(configFile)
@@ -65,6 +66,9 @@ func loadConfig() {
     log.Fatal("loadConfig failed reading the config file '" + configFile + "'", err)
   }
   err = json.Unmarshal([]byte(jsonText), &config)
+  if err != nil {
+    log.Fatal("loadConfig failed on unmarshal ", err)
+  }
   if flagTty != "" {
     config.Tty = flagTty
   }
@@ -74,32 +78,63 @@ func loadConfig() {
   if flagDatabase != "" {
     config.DatabasePath = flagDatabase
   }
+  if mockTty {
+    config.MockTty = mockTty
+  }
 }
 
 /* Constants representing the physical nature of the sensor hardware */
 type sensorType int
 const (
-  window = iota
-  door
-  motion
+  WINDOW sensorType = iota
+  DOOR
+  MOTION
 )
 /* Constants representing the kinds of events that can happen on sensors. Some
  * of these are electrical(trip, reset), others are abstract (door is ajar).
  */
 type eventCode int
 const (
-  TRIP = iota
+  TRIP eventCode = iota
   RESET
   AJAR
   AJAR_RESOLVED
   ANOMALY
 )
+var eventNames map[sensorType]map[eventCode]string = map[sensorType]map[eventCode]string{
+  WINDOW: map[eventCode]string{
+    TRIP: "Opened",
+    RESET: "Closed",
+    AJAR: "Ajar",
+    AJAR_RESOLVED: "Closed",
+    ANOMALY: "Opened",
+  },
+  DOOR: map[eventCode]string{
+    TRIP: "Opened",
+    RESET: "Closed",
+    AJAR: "Ajar",
+    AJAR_RESOLVED: "Closed",
+    ANOMALY: "Opened",
+  },
+  MOTION: map[eventCode]string{
+    TRIP: "Detected Motion",
+    RESET: "Still",
+    AJAR: "Ongoing Motion",
+    AJAR_RESOLVED: "Still",
+    ANOMALY: "Detected Motion",
+  },
+}
+var sensorTypeNames map[sensorType]string = map[sensorType]string{
+  MOTION: "Motion Sensor",
+  DOOR: "Door",
+  WINDOW: "Window",
+}
 /* Represents a monitorable event that has occurred. */
 type event struct {
   Which string
   Type sensorType
   Action eventCode
-  // TOOD: timestamp?
+  When time.Time
 }
 
 /* Reads a USB TTY looking for JSON messages from a hardware monitor and
@@ -108,7 +143,7 @@ type event struct {
  * any message types or it will eventually deadlock when the channel buffer
  * fills.
  */
-func ttyreader(incoming chan event, outgoing chan event) {
+func ttyReader(incoming chan event, outgoing chan event) {
   file, err := os.Open(config.Tty)
   if err != nil {
     log.Fatal("Error opening ", config.Tty, ", aborting ", err)
@@ -120,6 +155,33 @@ func ttyreader(incoming chan event, outgoing chan event) {
   for {
     dec.Decode(&event)
     outgoing <- event
+  }
+}
+
+/* Test-mode low-level event injector. Has the same role as ttyReader, but
+ * listens on an HTTP server, so that event can be faked locally.
+ */
+func ttyMock(incoming chan event, outgoing chan event) {
+  c := make(chan event, 5)
+  go func (c chan event) {
+    http.HandleFunc("/fake", func(writer http.ResponseWriter, req *http.Request) {
+      err := req.ParseForm()
+      if err != nil {
+        log.Print("WARNING: error parsing form in TTY helper: ", err)
+      } else {
+        which := req.Form["w"][0]
+        action, _ := strconv.Atoi(req.Form["a"][0])
+        c <- event{which, config.SensorTypes[which], eventCode(action), time.Now()}
+      }
+      writer.WriteHeader(http.StatusOK)
+      io.WriteString(writer, "OK")
+    })
+
+    log.Print(http.ListenAndServe(":" + strconv.Itoa(config.HttpPort + 1), nil))
+  }(c)
+  for {
+    b := <-c
+    outgoing <- b
   }
 }
 
@@ -143,6 +205,53 @@ func recorder(incoming chan event, outgoing chan event) {
   }
 }
 
+type timeWindow struct {
+  Hour int
+  Minute int
+  Duration time.Duration
+  Weekdays []time.Weekday
+}
+/* Parse string times & durations from config into a struct. */
+func parseExclusionIntervals() []timeWindow {
+  windows := []timeWindow{}
+  for _, w := range config.ExclusionIntervals {
+    providedStart, err := time.Parse("3:04pm", w.Start)
+    if err != nil {
+      log.Print("WARNING: exclusion interval time failed to parse ", w.Start)
+      continue
+    }
+    duration, err := time.ParseDuration(w.Duration)
+    if err != nil {
+      log.Print("WARNING: exclusion interval duration failed to parse ", w.Duration)
+      continue
+    }
+    windows = append(windows, timeWindow{
+      Hour: providedStart.Hour(),
+      Minute: providedStart.Minute(),
+      Duration: duration,
+      Weekdays: w.DaysOfWeek})
+  }
+  return windows
+}
+
+type ajarRule struct {
+  Interval time.Duration
+  Actions []ajarAction
+  Repeating bool
+}
+func parseAjarRules() []ajarRule {
+  rules := []ajarRule{}
+  for _, rule := range config.AjarRules {
+    duration, err := time.ParseDuration(rule.Interval)
+    if err != nil {
+      log.Print("WARNING: bogus interval '" + rule.Interval + "' specified in AjarRules ", err)
+      continue
+    }
+    rules = append(rules, ajarRule{duration, rule.Actions, rule.Repeating})
+  }
+  return rules
+}
+
 /* Looks for low-level events on the incoming channel and applies some
  * heuristics to determine whether they are noteworthy. Will inject
  * higher-level eventCodes (ajar, anomalous) to the outgoing channel as
@@ -153,30 +262,20 @@ func recorder(incoming chan event, outgoing chan event) {
  */
 func monitor(incoming chan event, outgoing chan event) {
   // local structs used in synthesizing human-meaningful events from raw events
-  type timeWindow struct {
-    hour int
-    minute int
-    duration time.Duration
-    dows []time.Weekday
-  }
-  type tripRecord struct {
+  type ajarRuleState struct {
     when time.Time
-    nextSend time.Duration
+    lastSend time.Duration
   }
 
-  // initialize the structs representing exclusion windows
-  workdays := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday}
-  weekends := []time.Weekday{time.Saturday, time.Sunday}
-  windows := []timeWindow{
-    timeWindow{7, 30, 2 * time.Hour + 30 * time.Minute, workdays[:]},
-    timeWindow{17, 30, 4 * time.Hour + 30 * time.Minute, workdays[:]},
-    timeWindow{9,  0, 1 * time.Hour, weekends[:]}, // TODO: remove
-    //timeWindow{9,  0, 11 * time.Hour, weekends[:]},
-  }
-  ajarThreshold := 5 * time.Second
+  ajarThreshold := config.AjarThreshold * time.Second
   resendFrequency := 1 * time.Minute
-  lastTrips := make(map[string]*tripRecord)
+  lastTrips := make(map[string]*ajarRuleState)
   ticker := time.Tick(1 * time.Second)
+
+  // pre-parse the exclusion windows and ajar rules so we don't perpetually
+  // re-parse in the ticker loop
+  windows := parseExclusionIntervals()
+  //ajarRules := parseAjarRules()
   for {
     select {
     case e := <-incoming:
@@ -184,7 +283,8 @@ func monitor(incoming chan event, outgoing chan event) {
 
       // timestamp trips for ajar-detection, and clear on resets
       if e.Action == TRIP {
-        lastTrips[e.Which] = &tripRecord{now, ajarThreshold}
+        log.Printf("%T %+v", ajarThreshold, ajarThreshold)
+        lastTrips[e.Which] = &ajarRuleState{now, ajarThreshold}
       } else if e.Action == RESET {
         delete(lastTrips, e.Which)
       }
@@ -194,7 +294,7 @@ func monitor(incoming chan event, outgoing chan event) {
         inWindow := false
         for _, w := range windows {
           legit := false
-          for _, dow := range w.dows {
+          for _, dow := range w.Weekdays {
             if now.Weekday() == dow {
               legit = true
               break
@@ -203,24 +303,24 @@ func monitor(incoming chan event, outgoing chan event) {
           if !legit {
             continue
           }
-          start := time.Date(now.Year(), now.Month(), now.Day(), w.hour, w.minute, 0, 0, time.Local)
-          end := start.Add(w.duration)
+          start := time.Date(now.Year(), now.Month(), now.Day(), w.Hour, w.Minute, 0, 0, time.Local)
+          end := start.Add(w.Duration)
           if now.After(start) && now.Before(end) {
             inWindow = true
             break
           }
         }
         if !inWindow {
-          outgoing <- event{e.Which, 0, ANOMALY}
+          outgoing <- event{e.Which, config.SensorTypes[e.Which], ANOMALY, now}
         }
       }
 
     case <- ticker:
       // once per second, check whether anything is (still) Ajar & (re)transmit if it's time to
       for which, last := range lastTrips {
-        if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.nextSend {
-          last.nextSend += resendFrequency
-          outgoing <- event{which, 0, AJAR}
+        if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.lastSend {
+          last.lastSend += resendFrequency
+          outgoing <- event{which, config.SensorTypes[which], AJAR, time.Now()}
         }
       }
     }
@@ -441,25 +541,36 @@ func gcmEscalator(incoming chan event, outgoing chan event) {
         GCM_MIMETYPE = "application/json"
         OAUTH_TOKEN = "AIzaSyDGBuD9xLI0weiV0nz7Z9AT76EyzSMXk7Y"
       )
+      type gcmPayload struct {
+        EventCode eventCode
+        EventName string
+        WhichId string
+        WhichName string
+        SensorType sensorType
+        SensorTypeName string
+        When time.Time
+      }
       type gcmRequest struct {
         RegistrationIds []string `json:"registration_ids"`
-        Data interface{} `json:"data"`
-      }
-      type gcmResponseResults struct {
-        MessageId string `json:"message_id"`
-        RegistrationId string `json:"registration_id"`
-        Error string `json:"error"`
+        Data gcmPayload `json:"data"`
       }
       type gcmResponse struct {
         MulticastId uint64 `json:"multicast_id"`
         Success int `json:"success"`
         Failure int `json:"failure"`
         CanonicalIds int `json:"canonical_ids"`
-        Results []gcmResponseResults `json:"results"`
+        Results []struct {
+          MessageId string `json:"message_id"`
+          RegistrationId string `json:"registration_id"`
+          Error string `json:"error"`
+        } `json:"results"`
       }
 
       // format up a GCM JSON message for the event
-      j, ok := json.Marshal(gcmRequest{regIdList, ev})
+      j, ok := json.Marshal(gcmRequest{regIdList, gcmPayload{
+        ev.Action, eventNames[ev.Type][ev.Action], ev.Which, config.SensorNames[ev.Which],
+        ev.Type, sensorTypeNames[ev.Type], ev.When,
+      }})
       if ok != nil {
         log.Print("JSON failure during encode for GCM", ok)
         break
@@ -533,10 +644,14 @@ func main() {
 
   // make a struct for each handler function, mapping it to events it wants to know about
   handlers := []handler{
-    handler{ttyreader, make(chan event, 10), make(map[eventCode]int)}, // no registrations
+    handler{ttyReader, make(chan event, 10), make(map[eventCode]int)}, // no registrations
     handler{recorder, make(chan event, 10), map[eventCode]int{TRIP: 1, RESET: 1, AJAR: 1, ANOMALY: 1}},
     handler{monitor, make(chan event, 10), map[eventCode]int{TRIP: 1, RESET: 1}},
     handler{gcmEscalator, make(chan event, 10), map[eventCode]int{AJAR: 1, ANOMALY: 1}},
+  }
+  if config.MockTty {
+    // override ttyReader with the mock, if so instructed
+    handlers[0] = handler{ttyMock, make(chan event, 10), make(map[eventCode]int)} // no registrations
   }
   for _, h := range handlers {
     go h.f(h.ch, events)
