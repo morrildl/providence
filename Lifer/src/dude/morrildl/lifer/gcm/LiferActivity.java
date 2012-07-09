@@ -37,20 +37,21 @@ public class LiferActivity extends Activity {
 		super.onResume();
 		String regId = GCMRegistrar.getRegistrationId(this);
 		if (regId != null && !"".equals(regId)) {
-			((TextView) findViewById(R.id.reg_id)).setText(regId);
 			if (!GCMRegistrar.isRegisteredOnServer(this)) {
 				new ServerRegisterTask(this).execute(regId);
 			}
-		} else {
-			((TextView) findViewById(R.id.reg_id)).setText("no reg ID");
 		}
 
 		Bundle b = getIntent().getExtras();
 		if (b != null) {
 			StringBuilder sb = new StringBuilder();
-			for (String k : b.keySet()) {
-				sb.append(k).append(" = ").append(b.getString(k)).append("\n");
+			sb.append(b.getString("WhichName"));
+			String s = b.getString("SensorTypeName");
+			if (s != null && !"".equals(s)) {
+				sb.append(" (a ").append(s).append(")");
 			}
+			sb.append(" reported '").append(b.getString("EventName"))
+					.append("' at ").append(b.getString("When"));
 			((TextView) findViewById(R.id.main_text)).setText(sb.toString());
 		} else {
 			Log.e("booga booga wtf", "no extras");
