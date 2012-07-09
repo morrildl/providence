@@ -1,4 +1,4 @@
-package dude.morrildl.lifer;
+package dude.morrildl.lifer.gcm;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -14,6 +14,8 @@ import android.util.Log;
 import android.widget.TextView;
 
 import com.google.android.gcm.GCMRegistrar;
+
+import dude.morrildl.lifer.R;
 
 public class LiferActivity extends Activity {
 	/** Called when the activity is first created. */

@@ -19,7 +19,7 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name" >
         <activity
-            android:name=".LiferActivity"
+            android:name=".gcm.LiferActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -39,7 +39,7 @@
             </intent-filter>
         </receiver>
         <receiver
-            android:name="com.google.android.gcm.GCMBroadcastReceiver"
+            android:name="dude.morrildl.lifer.gcm.GCMBroadcastReceiver"
             android:permission="com.google.android.c2dm.permission.SEND" >
             <intent-filter>
                 <action android:name="com.google.android.c2dm.intent.RECEIVE" />
@@ -52,7 +52,7 @@
         <service
             android:name=".photos.PhotoUploaderService"
             android:exported="false" />
-        <service android:name=".GCMIntentService" />
+        <service android:name=".gcm.GCMIntentService" />
     </application>
 
 </manifest>

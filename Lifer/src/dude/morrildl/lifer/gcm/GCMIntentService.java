@@ -1,4 +1,4 @@
-package dude.morrildl.lifer;
+package dude.morrildl.lifer.gcm;
 
 import android.app.Notification;
 import android.app.NotificationManager;
