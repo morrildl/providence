@@ -9,6 +9,8 @@ import android.util.Log;
 
 import com.google.android.gcm.GCMBaseIntentService;
 
+import dude.morrildl.lifer.LiferActivity;
+
 public class GCMIntentService extends GCMBaseIntentService {
 	public static final String SENDER_ID = "25235963451";
 

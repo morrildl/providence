@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="hello">Hello World, LiferActivity!</string>
     <string name="app_name">Lifer</string>
     <string name="reg_id_label">Reg ID</string>
     <string name="reg_id">unregistered</string>
     <string name="reg_button">Register</string>
+    <string name="menu_test_1">Test One</string>
+    <string name="menu_test_2">Test Two</string>
+    <string name="spinner_log">History</string>
+    <string name="spinner_recent">Latest</string>
+    <string name="latest_event_default_text">Latest event info will appear here.</string>
+    <string name="event_history_default_text">Event history will appear here.</string>
+
+    <string-array name="providence_action_list">
+        <item>Latest</item>
+        <item>History</item>
+    </string-array>
 
 </resources>
