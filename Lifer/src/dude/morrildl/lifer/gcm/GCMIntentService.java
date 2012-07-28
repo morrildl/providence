@@ -3,13 +3,16 @@ package dude.morrildl.lifer.gcm;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import com.google.android.gcm.GCMBaseIntentService;
 
 import dude.morrildl.lifer.LiferActivity;
+import dude.morrildl.lifer.providence.OpenHelper;
 
 public class GCMIntentService extends GCMBaseIntentService {
 	public static final String SENDER_ID = "25235963451";
@@ -25,10 +28,21 @@ public class GCMIntentService extends GCMBaseIntentService {
 
 	@Override
 	protected void onMessage(Context context, Intent intent) {
+		OpenHelper helper = new OpenHelper(context);
+		SQLiteDatabase db = helper.getWritableDatabase();
+		db.beginTransaction();
+		ContentValues values = new ContentValues();
+		values.put("which", intent.getStringExtra("WhichName"));
+		values.put("type", intent.getStringExtra("SensorTypeName"));
+		values.put("event", intent.getStringExtra("EventName"));
+		values.put("ts", intent.getStringExtra("When"));
+		db.insert("events", null, values);
+		db.execSQL(OpenHelper.GC);
+		db.setTransactionSuccessful();
+		db.endTransaction();
+		
 		Intent i = new Intent(context, LiferActivity.class);
-		i.putExtras(intent.getExtras());
-		PendingIntent pi = PendingIntent.getActivity(context, 42, i,
-				PendingIntent.FLAG_UPDATE_CURRENT);
+		PendingIntent pi = PendingIntent.getActivity(context, 42, i, 0);
 		Notification n = (new Notification.Builder(context))
 				.setContentTitle("Event fired").setContentIntent(pi)
 				.setSmallIcon(android.R.drawable.ic_delete).setAutoCancel(true)
