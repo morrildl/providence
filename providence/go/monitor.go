@@ -298,7 +298,6 @@ func monitor(incoming chan event, outgoing chan event) {
 
       // timestamp trips for ajar-detection, and clear on resets
       if e.Action == TRIP {
-        log.Printf("%T %+v", ajarThreshold, ajarThreshold)
         lastTrips[e.Which] = &ajarRuleState{now, ajarThreshold}
       } else if e.Action == RESET {
         delete(lastTrips, e.Which)
@@ -610,13 +609,12 @@ func gcmEscalator(incoming chan event, outgoing chan event) {
       // look at the JSON response from GCM server & take any actions indicated
       body, err := ioutil.ReadAll(resp.Body)
       if err == nil && len(body) > 0 {
-        log.Print("GCM server response:")
-        log.Print("        " + string(body))
         var jsonResponse gcmResponse
         jsonErr := json.Unmarshal(body, &jsonResponse)
         if jsonErr != nil {
-          log.Print("JSON unmarshal failure on GCM response", jsonErr)
+          log.Print("JSON unmarshal failure on GCM response: ", jsonErr)
         }
+        log.Print("GCM response summary: success: ", jsonResponse.Success, "; failure: ", jsonResponse.Failure)
         for i, oldId := range regIdList {
           result := jsonResponse.Results[i]
 
