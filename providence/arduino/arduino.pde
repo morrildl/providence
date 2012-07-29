@@ -146,12 +146,12 @@ void update_state() {
             // monitor can infer types of motion or similar from the timing
             // pattern of the bit flips. But, for now, we just want boolean
             // trip/resets, so suppress "repeat trips". The symptom is that
-            // the Arduino will report multiple trip events (i.e. which=0)
+            // the Arduino will report multiple trip events (i.e. action=0)
             // sequentially, even after debounce; the reason it happens is
             // because the debounce just reports the new value after it
             // settles, and it's both starting and ending in the tripped
             // state. Of course it's also possible that this is just noise and
-            // the debounce isn't long enough, but 250ms is already pretty
+            // the debounce isn't long enough, but 75ms is already pretty
             // long for a debounce, so I think it's a feature not a bug.
             Serial.print("{\"Which\":\"");
             Serial.print(DIGITAL_PIN_NAMES[i]);
