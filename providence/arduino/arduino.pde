@@ -30,6 +30,7 @@
 int state = STATE_START;
 unsigned long current_millis = 0, state_dump_time = 0;
 uint8_t DIGITAL_PIN_STATE[9];
+uint8_t DIGITAL_PIN_LAST_SENT[9];
 uint64_t DIGITAL_DEBOUNCE[9];
 uint16_t ANALOG_PIN_STATE[6];
 char* DIGITAL_PIN_NAMES[] = {
@@ -59,6 +60,7 @@ void setup() {
     digitalWrite(i, LOW);
     DIGITAL_PIN_STATE[i] = 0;
     DIGITAL_DEBOUNCE[i] = 0;
+    DIGITAL_PIN_LAST_SENT[i] = 42; // make sure first event is always sent
   }
   for (int i = 0; i < 6; ++i) {
     pinMode(i, INPUT);
@@ -137,11 +139,27 @@ void update_state() {
       if (DIGITAL_DEBOUNCE[i] != 0) {
         if ((current_millis - DIGITAL_DEBOUNCE[i]) > DEBOUNCE_MILLIS) {
           DIGITAL_DEBOUNCE[i] = 0;
-          Serial.print("{\"Which\":\"");
-          Serial.print(DIGITAL_PIN_NAMES[i]);
-          Serial.print("\",\"Action\":");
-          Serial.print(digitalRead(i));
-          Serial.println("}");
+          if (reading != DIGITAL_PIN_LAST_SENT[i]) {
+            // Some sensors (e.g. my motion sensor) flip values a lot --
+            // sometimes multiple times per second. This appears to be normal
+            // and is not bounce noise. Presumably the intent is that the
+            // monitor can infer types of motion or similar from the timing
+            // pattern of the bit flips. But, for now, we just want boolean
+            // trip/resets, so suppress "repeat trips". The symptom is that
+            // the Arduino will report multiple trip events (i.e. which=0)
+            // sequentially, even after debounce; the reason it happens is
+            // because the debounce just reports the new value after it
+            // settles, and it's both starting and ending in the tripped
+            // state. Of course it's also possible that this is just noise and
+            // the debounce isn't long enough, but 250ms is already pretty
+            // long for a debounce, so I think it's a feature not a bug.
+            Serial.print("{\"Which\":\"");
+            Serial.print(DIGITAL_PIN_NAMES[i]);
+            Serial.print("\",\"Action\":");
+            Serial.print(reading);
+            Serial.println("}");
+            DIGITAL_PIN_LAST_SENT[i] = reading;
+          }
         }
       }
     }
