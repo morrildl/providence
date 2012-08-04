@@ -42,7 +42,7 @@ public class EventHistoryFragment extends ListFragment {
 					"yyyy'-'MM'-'dd'T'HH:mm:ss");
 			try {
 				java.util.Date parsedTs = sdf.parse(ts);
-				sdf = new SimpleDateFormat("E, d MMMMMMMMM y 'at' K:m:sa");
+				sdf = new SimpleDateFormat("EEE, dd MMMMMMMMM yyyy 'at' KK:mm:ssa");
 				ts = sdf.format(parsedTs);
 			} catch (ParseException e) {
 				ts = "";

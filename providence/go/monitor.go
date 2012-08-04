@@ -45,6 +45,7 @@ var config struct {
   HttpPort int
   DatabasePath string
   MockTty bool
+  OAuthToken string
   SensorNames map[string]string
   SensorTypes map[string]sensorType
   AjarThreshold time.Duration
@@ -65,11 +66,13 @@ func loadConfig() {
   var flagDatabase string
   var configFile string
   var mockTty bool
+  var oAuthToken string
   flag.StringVar(&configFile, "config", "./monitor.json", "fully qualified path to the JSON config file")
   flag.IntVar(&flagPort, "port", 4280, "port of the HTTP server")
   flag.StringVar(&flagTty, "tty", "/dev/ttyUSB0", "USB TTY file connected to the Arduino")
   flag.StringVar(&flagDatabase, "database", "./monitor.sqlite3", "fully qualified path to the sqlite3 database file")
   flag.BoolVar(&mockTty, "mocktty", false, "use an HTTP server on :4281 instead of a TTY")
+  flag.StringVar(&oAuthToken, "oauth", "", "specify the OAuth token to send to GCM")
   flag.Parse()
 
   file, err := os.Open(configFile)
@@ -95,6 +98,9 @@ func loadConfig() {
   }
   if mockTty {
     config.MockTty = mockTty
+  }
+  if oAuthToken != "" {
+    config.OAuthToken = oAuthToken
   }
 }
 
@@ -553,14 +559,13 @@ func gcmEscalator(incoming chan event, outgoing chan event) {
       const (
         GCM_URL = "https://android.googleapis.com/gcm/send"
         GCM_MIMETYPE = "application/json"
-        OAUTH_TOKEN = "AIzaSyDjAfHXcIZ_ua8K_oncCNL4YJY9O1Vf_aA"
       )
       type gcmPayload struct {
-        EventCode eventCode
+        EventCode string
         EventName string
         WhichId string
         WhichName string
-        SensorType sensorType
+        SensorType string
         SensorTypeName string
         When time.Time
       }
@@ -582,8 +587,8 @@ func gcmEscalator(incoming chan event, outgoing chan event) {
 
       // format up a GCM JSON message for the event
       j, ok := json.Marshal(gcmRequest{regIdList, gcmPayload{
-        ev.Action, eventNames[ev.Type][ev.Action], ev.Which, config.SensorNames[ev.Which],
-        ev.Type, sensorTypeNames[ev.Type], ev.When,
+        string(ev.Action), eventNames[ev.Type][ev.Action], ev.Which, config.SensorNames[ev.Which],
+        string(ev.Type), sensorTypeNames[ev.Type], ev.When,
       }})
       if ok != nil {
         log.Print("JSON failure during encode for GCM", ok)
@@ -596,7 +601,7 @@ func gcmEscalator(incoming chan event, outgoing chan event) {
         log.Print("Failed to create GCM HTTP request", err)
         break
       }
-      req.Header.Add("Authorization", "key=" + OAUTH_TOKEN)
+      req.Header.Add("Authorization", "key=" + config.OAuthToken)
       req.Header.Add("Content-Type", GCM_MIMETYPE)
       client := &http.Client{}
       resp, err := client.Do(req)
@@ -613,6 +618,8 @@ func gcmEscalator(incoming chan event, outgoing chan event) {
         jsonErr := json.Unmarshal(body, &jsonResponse)
         if jsonErr != nil {
           log.Print("JSON unmarshal failure on GCM response: ", jsonErr)
+          log.Print(string(body))
+          break
         }
         log.Print("GCM response summary: success: ", jsonResponse.Success, "; failure: ", jsonResponse.Failure)
         for i, oldId := range regIdList {

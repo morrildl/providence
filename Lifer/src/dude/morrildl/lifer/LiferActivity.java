@@ -97,7 +97,7 @@ public class LiferActivity extends Activity implements
 	}
 
 	static class ServerRegisterTask extends AsyncTask<String, Integer, String> {
-		private static final String SERVER_URL = "http://compatriot:4280/regid";
+		private static final String SERVER_URL = "http://providence:4280/regid";
 		private Context context;
 
 		@SuppressWarnings("unused")
