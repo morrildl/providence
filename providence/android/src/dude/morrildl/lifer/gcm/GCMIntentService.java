@@ -12,6 +12,7 @@ import android.util.Log;
 import com.google.android.gcm.GCMBaseIntentService;
 
 import dude.morrildl.lifer.LiferActivity;
+import dude.morrildl.lifer.R;
 import dude.morrildl.lifer.providence.OpenHelper;
 
 public class GCMIntentService extends GCMBaseIntentService {
@@ -45,7 +46,7 @@ public class GCMIntentService extends GCMBaseIntentService {
 		PendingIntent pi = PendingIntent.getActivity(context, 42, i, 0);
 		Notification n = (new Notification.Builder(context))
 				.setContentTitle("Event fired").setContentIntent(pi)
-				.setSmallIcon(android.R.drawable.ic_delete).setAutoCancel(true)
+				.setSmallIcon(R.drawable.ic_stat_event).setAutoCancel(true)
 				.getNotification();
 		((NotificationManager) context
 				.getSystemService(Context.NOTIFICATION_SERVICE)).notify(42, n);
