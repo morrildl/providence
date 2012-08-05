@@ -59,6 +59,7 @@ public class LiferActivity extends Activity implements
 				R.array.providence_action_list,
 				android.R.layout.simple_spinner_dropdown_item);
 		actionBar.setListNavigationCallbacks(spinnerAdapter, this);
+		//actionBar.setIcon(R.drawable.ic_action_bar);
 	}
 
 	@Override
