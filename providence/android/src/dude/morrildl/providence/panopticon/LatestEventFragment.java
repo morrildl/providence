@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.providence;
+package dude.morrildl.providence.panopticon;
 
 import android.app.Fragment;
 import android.database.Cursor;
@@ -8,7 +8,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-import dude.morrildl.lifer.R;
+import dude.morrildl.providence.R;
 
 public class LatestEventFragment extends Fragment {
 	@Override

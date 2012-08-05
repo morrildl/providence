@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.photos;
+package dude.morrildl.providence.photos;
 
 import android.app.Service;
 import android.content.Context;
@@ -12,10 +12,10 @@ import android.os.Message;
 import android.util.Log;
 
 public class PhotoUploaderService extends Service {
-	public static final String OPERATION = "dude.morrildl.lifer.photoupload.operation";
+	public static final String OPERATION = "dude.morrildl.providence.photoupload.operation";
 	public static final int OPERATION_NOOP = 0;
 	public static final int OPERATION_UPLOAD_PHOTO_URI = 1;
-	public static final String URI_DATABASE_NAME = "dude.morrildl.lifer";
+	public static final String URI_DATABASE_NAME = "dude.morrildl.providence";
 	public static final int URI_DATABASE_VERSION = 1;
 
 	private ProcessorThread processor = null;

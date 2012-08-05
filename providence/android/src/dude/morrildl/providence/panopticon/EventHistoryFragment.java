@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.providence;
+package dude.morrildl.providence.panopticon;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -13,7 +13,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SimpleAdapter;
-import dude.morrildl.lifer.R;
+import dude.morrildl.providence.R;
 
 public class EventHistoryFragment extends ListFragment {
 	@Override

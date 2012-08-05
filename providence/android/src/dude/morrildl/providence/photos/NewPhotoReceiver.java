@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.photos;
+package dude.morrildl.providence.photos;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

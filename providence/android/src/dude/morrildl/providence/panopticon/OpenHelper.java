@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.providence;
+package dude.morrildl.providence.panopticon;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;

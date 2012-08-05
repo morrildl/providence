@@ -1,4 +1,4 @@
-package dude.morrildl.lifer;
+package dude.morrildl.providence;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,11 +23,11 @@ import android.widget.Toast;
 
 import com.google.android.gcm.GCMRegistrar;
 
-import dude.morrildl.lifer.gcm.GCMIntentService;
-import dude.morrildl.lifer.providence.EventHistoryFragment;
-import dude.morrildl.lifer.providence.LatestEventFragment;
+import dude.morrildl.providence.gcm.GCMIntentService;
+import dude.morrildl.providence.panopticon.EventHistoryFragment;
+import dude.morrildl.providence.panopticon.LatestEventFragment;
 
-public class LiferActivity extends Activity implements
+public class PanopticonActivity extends Activity implements
 		ActionBar.OnNavigationListener {
 	private LatestEventFragment latestEventFragment = null;
 	private EventHistoryFragment eventHistoryFragment = null;
@@ -59,7 +59,12 @@ public class LiferActivity extends Activity implements
 				R.array.providence_action_list,
 				android.R.layout.simple_spinner_dropdown_item);
 		actionBar.setListNavigationCallbacks(spinnerAdapter, this);
-		//actionBar.setIcon(R.drawable.ic_action_bar);
+	}
+
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		GCMRegistrar.onDestroy(this);
 	}
 
 	@Override
@@ -127,7 +132,14 @@ public class LiferActivity extends Activity implements
 				OutputStream os = cxn.getOutputStream();
 				os.write(regId.getBytes());
 				os.close();
-				cxn.getInputStream().close();
+				String s;
+				try {
+					s = new java.util.Scanner(cxn.getInputStream())
+							.useDelimiter("\\A").next();
+				} catch (java.util.NoSuchElementException e) {
+					s = "";
+				}
+				return s;
 			} catch (IOException e) {
 				Log.e("doInBackground", "transmission error", e);
 				return null;
@@ -135,13 +147,12 @@ public class LiferActivity extends Activity implements
 				if (cxn != null)
 					cxn.disconnect();
 			}
-			return regId;
 		}
 
 		@Override
 		protected void onPostExecute(String result) {
-			Log.e("onPostExecute", "null result :(");
-			if (result != null)
+			Log.e("onPostExecute result", "'" + result + "'");
+			if ("OK".equals(result))
 				GCMRegistrar.setRegisteredOnServer(context, true);
 		}
 	}

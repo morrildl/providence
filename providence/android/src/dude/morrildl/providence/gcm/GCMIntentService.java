@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.gcm;
+package dude.morrildl.providence.gcm;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -11,9 +11,9 @@ import android.util.Log;
 
 import com.google.android.gcm.GCMBaseIntentService;
 
-import dude.morrildl.lifer.LiferActivity;
-import dude.morrildl.lifer.R;
-import dude.morrildl.lifer.providence.OpenHelper;
+import dude.morrildl.providence.PanopticonActivity;
+import dude.morrildl.providence.R;
+import dude.morrildl.providence.panopticon.OpenHelper;
 
 public class GCMIntentService extends GCMBaseIntentService {
 	public static final String SENDER_ID = "25235963451";
@@ -42,7 +42,7 @@ public class GCMIntentService extends GCMBaseIntentService {
 		db.setTransactionSuccessful();
 		db.endTransaction();
 		
-		Intent i = new Intent(context, LiferActivity.class);
+		Intent i = new Intent(context, PanopticonActivity.class);
 		PendingIntent pi = PendingIntent.getActivity(context, 42, i, 0);
 		Notification n = (new Notification.Builder(context))
 				.setContentTitle("Event fired").setContentIntent(pi)

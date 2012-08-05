@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.photos;
+package dude.morrildl.providence.photos;
 
 /**
  * Douw F. Beekman, Auto Jobber

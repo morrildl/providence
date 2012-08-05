@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">Lifer</string>
+    <string name="app_name">Providence</string>
     <string name="reg_id_label">Reg ID</string>
     <string name="reg_id">unregistered</string>
     <string name="reg_button">Register</string>

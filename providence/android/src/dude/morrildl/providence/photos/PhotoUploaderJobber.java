@@ -1,4 +1,4 @@
-package dude.morrildl.lifer.photos;
+package dude.morrildl.providence.photos;
 
 import android.net.Uri;
 import android.util.Log;
