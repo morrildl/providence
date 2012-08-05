@@ -388,6 +388,7 @@ func regIdPersisterEscalatorHelper() chan regIdUpdate {
     for {
       select {
       case update := <-updateChan:
+        log.Print("Starting persistence request")
         if update.Remove {
           // Basic delete.
           _, err = deleteStmt.Exec(update.RegId)
@@ -464,6 +465,7 @@ func escalatorHttpHelper() chan regIdRequest {
       if err != nil {
         log.Print("HTTP request read failure", err)
       } else {
+        log.Print("/regid: ", req.Method)
         remove := req.Method == "DELETE"
         for _, s := range strings.Split(string(body), "\n") {
           regIdRequestChan <- regIdRequest{s, remove}
