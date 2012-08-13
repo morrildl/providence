@@ -6,7 +6,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-import android.app.ActionBar;
 import android.app.Activity;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
@@ -17,19 +16,19 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.ArrayAdapter;
-import android.widget.SpinnerAdapter;
 import android.widget.Toast;
 
 import com.google.android.gcm.GCMRegistrar;
 
 import dude.morrildl.providence.gcm.GCMIntentService;
+import dude.morrildl.providence.panopticon.EventDetailsFragment;
 import dude.morrildl.providence.panopticon.EventHistoryFragment;
-import dude.morrildl.providence.panopticon.LatestEventFragment;
 
-public class PanopticonActivity extends Activity implements
-		ActionBar.OnNavigationListener {
-	private LatestEventFragment latestEventFragment = null;
+public class PanopticonActivity extends Activity /*
+												 * implements
+												 * ActionBar.OnNavigationListener
+												 */{
+	private EventDetailsFragment eventDetailsFragment = null;
 	private EventHistoryFragment eventHistoryFragment = null;
 
 	/** Called when the activity is first created. */
@@ -39,11 +38,11 @@ public class PanopticonActivity extends Activity implements
 		setContentView(R.layout.main);
 		FragmentManager fm = getFragmentManager();
 		FragmentTransaction ft = fm.beginTransaction();
-		latestEventFragment = new LatestEventFragment();
+		eventDetailsFragment = new EventDetailsFragment();
 		eventHistoryFragment = new EventHistoryFragment();
-		ft.add(R.id.main_container, latestEventFragment);
 		ft.add(R.id.main_container, eventHistoryFragment);
-		ft.show(latestEventFragment).hide(eventHistoryFragment);
+		ft.add(R.id.main_container, eventDetailsFragment);
+		ft.show(eventHistoryFragment).hide(eventDetailsFragment);
 		ft.commit();
 
 		GCMRegistrar.checkDevice(this);
@@ -52,13 +51,6 @@ public class PanopticonActivity extends Activity implements
 		if (regId == null || "".equals(regId)) {
 			GCMRegistrar.register(this, GCMIntentService.SENDER_ID);
 		}
-
-		ActionBar actionBar = getActionBar();
-		actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_LIST);
-		SpinnerAdapter spinnerAdapter = ArrayAdapter.createFromResource(this,
-				R.array.providence_action_list,
-				android.R.layout.simple_spinner_dropdown_item);
-		actionBar.setListNavigationCallbacks(spinnerAdapter, this);
 	}
 
 	@Override
@@ -157,25 +149,10 @@ public class PanopticonActivity extends Activity implements
 		}
 	}
 
-	public boolean onNavigationItemSelected(int itemPosition, long itemId) {
+	public void showDetailsFragment(long id) {
+		eventDetailsFragment.setId(id);
 		FragmentManager fm = getFragmentManager();
-		switch (itemPosition) {
-		case 0:
-			fm.beginTransaction().hide(eventHistoryFragment)
-					.show(latestEventFragment).commit();
-			break;
-		case 1:
-			fm.beginTransaction().hide(latestEventFragment)
-					.show(eventHistoryFragment).commit();
-			break;
-		default:
-			// uh oh
-			Log.e("onNavigationItemSelection",
-					"called with unknown itemPosition");
-			fm.beginTransaction().hide(eventHistoryFragment)
-					.show(latestEventFragment).commit();
-		}
-
-		return false;
+		fm.beginTransaction().hide(eventHistoryFragment)
+				.show(eventDetailsFragment).addToBackStack(null).commit();
 	}
 }
