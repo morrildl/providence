@@ -589,8 +589,8 @@ func gcmEscalator(incoming chan event, outgoing chan event) {
 
       // format up a GCM JSON message for the event
       j, ok := json.Marshal(gcmRequest{regIdList, gcmPayload{
-        string(ev.Action), eventNames[ev.Type][ev.Action], ev.Which, config.SensorNames[ev.Which],
-        string(ev.Type), sensorTypeNames[ev.Type], ev.When,
+        strconv.Itoa(int(ev.Action)), eventNames[ev.Type][ev.Action], ev.Which, config.SensorNames[ev.Which],
+        strconv.Itoa(int(ev.Type)), sensorTypeNames[ev.Type], ev.When,
       }})
       if ok != nil {
         log.Print("JSON failure during encode for GCM", ok)
