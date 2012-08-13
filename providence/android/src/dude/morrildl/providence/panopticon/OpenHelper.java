@@ -29,6 +29,7 @@ public class OpenHelper extends SQLiteOpenHelper {
 	@Override
 	public void onCreate(SQLiteDatabase db) {
 		db.execSQL(CREATE_EVENTS);
+		db.execSQL(CREATE_LAST_MOTION);
 	}
 
 	@Override

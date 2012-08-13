@@ -92,13 +92,18 @@ public class EventHistoryFragment extends ListFragment {
 				try {
 					SimpleDateFormat sdf = new SimpleDateFormat(
 							"yyyy'-'MM'-'dd'T'HH:mm:ss");
-					java.util.Date parsedTs = sdf.parse(tmpCursor.getString(0));
+					String dateString = tmpCursor.getString(0);
+					if (dateString != null) {
+						java.util.Date parsedTs = sdf.parse(dateString);
 
-					sdf = new SimpleDateFormat(
-							"EEE, dd MMMMMMMMM yyyy 'at' KK:mm:ssa");
-					String friendlyDate = sdf.format(parsedTs);
-					tv.setText("Last motion detected at: " + friendlyDate);
-					tv.setVisibility(View.VISIBLE);
+						sdf = new SimpleDateFormat(
+								"EEE, dd MMMMMMMMM yyyy 'at' KK:mm:ssa");
+						dateString = sdf.format(parsedTs);
+						tv.setText("Last motion detected at: " + dateString);
+						tv.setVisibility(View.VISIBLE);
+					} else {
+						tv.setVisibility(View.GONE);
+					}
 				} catch (ParseException e) {
 					tv.setVisibility(View.GONE);
 				}
