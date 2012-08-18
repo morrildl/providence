@@ -312,22 +312,26 @@ func monitor(incoming chan event, outgoing chan event) {
       // check trips against exclusion intervals for anomalous events
       if e.Action == TRIP {
         inWindow := false
-        for _, w := range windows {
-          legit := false
-          for _, dow := range w.Weekdays {
-            if now.Weekday() == dow {
-              legit = true
+        if e.Type != MOTION {
+          // skip windows and always send motion events, as they are more
+          // like state updates than events
+          for _, w := range windows {
+            legit := false
+            for _, dow := range w.Weekdays {
+              if now.Weekday() == dow {
+                legit = true
+                break
+              }
+            }
+            if !legit {
+              continue
+            }
+            start := time.Date(now.Year(), now.Month(), now.Day(), w.Hour, w.Minute, 0, 0, time.Local)
+            end := start.Add(w.Duration)
+            if now.After(start) && now.Before(end) {
+              inWindow = true
               break
             }
-          }
-          if !legit {
-            continue
-          }
-          start := time.Date(now.Year(), now.Month(), now.Day(), w.Hour, w.Minute, 0, 0, time.Local)
-          end := start.Add(w.Duration)
-          if now.After(start) && now.Before(end) {
-            inWindow = true
-            break
           }
         }
         if !inWindow {
