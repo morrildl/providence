@@ -174,8 +174,12 @@ func ttyReader(incoming chan event, outgoing chan event) {
   dec := json.NewDecoder(reader)
   var event event
   for {
-    dec.Decode(&event)
-    outgoing <- event
+    err := dec.Decode(&event)
+    if err == nil {
+      outgoing <- event
+    } else {
+      log.Println("WARNING: JSON parse error on tty")
+    }
   }
 }
 
