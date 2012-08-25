@@ -305,6 +305,7 @@ func monitor(incoming chan event, outgoing chan event) {
     select {
     case e := <-incoming:
       now := time.Now()
+      sensorType := config.SensorTypes[e.Which]
 
       // timestamp trips for ajar-detection, and clear on resets
       if e.Action == TRIP {
@@ -316,7 +317,7 @@ func monitor(incoming chan event, outgoing chan event) {
       // check trips against exclusion intervals for anomalous events
       if e.Action == TRIP {
         inWindow := false
-        if e.Type != MOTION {
+        if sensorType != MOTION {
           // skip windows and always send motion events, as they are more
           // like state updates than events
           for _, w := range windows {
@@ -339,7 +340,7 @@ func monitor(incoming chan event, outgoing chan event) {
           }
         }
         if !inWindow {
-          outgoing <- event{e.Which, config.SensorTypes[e.Which], ANOMALY, now}
+          outgoing <- event{e.Which, sensorType, ANOMALY, now}
         }
       }
 
