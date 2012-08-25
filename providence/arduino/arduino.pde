@@ -139,9 +139,9 @@ void loop() {
       // state of the pin, and immediately report the TRIP event
       if ((reading == 0) && (PIN_STATE[i] == 1)) {
           PIN_STATE[i] = 0;
-          Serial.print("{\"Which\":");
+          Serial.print("{\"Which\":\"");
           Serial.print(PIN_ID[i]);
-          Serial.println(",\"Action\": 0}");
+          Serial.println("\",\"Action\": 0}");
       }
       if (PIN_STATE[i] == 0) {
         if (reading == 0) {
@@ -153,9 +153,9 @@ void loop() {
           // it's not still ringing
           if (current_millis - DEBOUNCE_LAST_CHANGED[i] > DEBOUNCE_TIMEOUT[i]) {
             // Ringing is over; report a RESET and take us out of the TRIP state
-            Serial.print("{\"Which\":");
+            Serial.print("{\"Which\":\"");
             Serial.print(PIN_ID[i]);
-            Serial.println(",\"Action\": 1}");
+            Serial.println("\",\"Action\": 1}");
             PIN_STATE[i] = 1;
             DEBOUNCE_LAST_CHANGED[i] = 0;
           }
