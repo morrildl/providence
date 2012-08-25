@@ -82,6 +82,11 @@ void setup() {
       pinMode(i, INPUT);
       digitalWrite(i, LOW); // disable built-in pull-up resistor
     }
+    if (PIN_TYPE[i] == PIN_TYPE_RINGER) {
+      PIN_STATE[i] = 1;
+    } else {
+      PIN_STATE[i] = 0;
+    }
   }
   Serial.begin(9600);
 }
