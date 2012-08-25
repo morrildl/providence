@@ -1,211 +1,167 @@
-/*
- * Copyright 2012 Dan Morrill
- * 
+/* Copyright © 2012 Dan Morrill
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-#define STATE_DUMP_INTERVAL 10000
-#define DEBOUNCE_MILLIS 75
+// IDs of each pin to be emitted in the output
+#define ID_UNUSED 0
+#define ID_FRONT_DOOR 1
+#define ID_GARAGE_DOOR 2
+#define ID_FOYER_MOTION 3
+uint8_t PIN_ID[] = { // up to 255 sensors
+  ID_UNUSED, // Arduino pins start at 2
+  ID_UNUSED, // Arduino pins start at 2
 
-// FSM state definitions
-#define STATE_START 0
-#define STATE_TIME_UNSET 1
+  ID_FRONT_DOOR,
+  ID_GARAGE_DOOR,
+  ID_FOYER_MOTION,
 
-// opcode definitions
-#define COMMAND_DELIMITER 0xff
-#define COMMAND_RESET 0x2a
-#define COMMAND_TIME_INIT (COMMAND_RESET + 1)
-
-// state variables
-int state = STATE_START;
-unsigned long current_millis = 0, state_dump_time = 0;
-uint8_t DIGITAL_PIN_STATE[9];
-uint64_t DIGITAL_DEBOUNCE[9];
-uint16_t ANALOG_PIN_STATE[6];
-char* DIGITAL_PIN_NAMES[] = {
-  "",
-  "",
-  "FRONT_DOOR",
-  "GARAGE_DOOR",
-  "MOTION",
-  "",
-  "",
-  "",
-  "",
+  ID_UNUSED,
+  ID_UNUSED,
+  ID_UNUSED,
+  ID_UNUSED,
 };
 
-struct wall_time_struct {
-  unsigned long raw;
-  int init;
-  unsigned int hours;
-  unsigned int minutes;
-  unsigned int seconds;
+// Indicators for how to handle pins, by type of thing connected to them
+#define PIN_TYPE_UNUSED 0
+#define PIN_TYPE_SWITCH 1 // mechanical switch; needs debouncing
+#define PIN_TYPE_RINGER 2 // "rings" 0->1->0 for duration of trip - e.g. motion sensor; cannot be debounced
+uint8_t PIN_TYPE[] = {
+  PIN_TYPE_UNUSED, // Arduino pins start at 2
+  PIN_TYPE_UNUSED, // Arduino pins start at 2
+
+  PIN_TYPE_SWITCH,
+  PIN_TYPE_SWITCH,
+  PIN_TYPE_RINGER,
+
+  PIN_TYPE_UNUSED,
+  PIN_TYPE_UNUSED,
+  PIN_TYPE_UNUSED,
+  PIN_TYPE_UNUSED,
 };
-struct wall_time_struct wall_time;
+
+// Tracks the last observed state of each pin
+uint8_t PIN_STATE[] = {
+  0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+// Tracks the time observed value last changed for each pin
+uint64_t DEBOUNCE_LAST_CHANGED[] = {
+  0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+// Per-sensor debounce timeouts. Since electronic signals settle faster than
+// analog ones, one timeout does not fit all.
+uint8_t DEBOUNCE_TIMEOUT[] = {
+  0, // Arduino pins start at 2
+  0, // Arduino pins start at 2
+
+  75, // door sensor -- analog; 75ms debounce
+  75, // door sensor -- analog; 75ms debounce
+  50, // motion sensor -- electronic; 10ms debounce
+
+  0, // unused
+  0, // unused
+  0, // unused
+  0, // unused
+};
 
 void setup() {
   for (int i = 2; i < 9; ++i) {
-    pinMode(i, INPUT);
-    digitalWrite(i, LOW);
-    DIGITAL_PIN_STATE[i] = 0;
-    DIGITAL_DEBOUNCE[i] = 0;
-  }
-  for (int i = 0; i < 6; ++i) {
-    pinMode(i, INPUT);
-    ANALOG_PIN_STATE[i] = 0;
+    if (PIN_TYPE[i] != PIN_TYPE_UNUSED) {
+      pinMode(i, INPUT);
+      digitalWrite(i, LOW); // disable built-in pull-up resistor
+    }
   }
   Serial.begin(9600);
 }
 
-// clears all state value and drops back to the start state
-void reset() {
-  state = STATE_TIME_UNSET;
-}
-
-// examines the serial/TTL input, looking for command codes, and executes any it finds
-void process_incoming() {
-  unsigned char cmd_type, opcode = 0;
-  unsigned long l = 0, start = 0;
-  while (Serial.available() >= 2) { // keep going as long as it we might have messages
-    cmd_type = (unsigned char)(Serial.read() & 0xff);
-    opcode = (unsigned char)(Serial.read() & 0xff);
-    if (cmd_type != COMMAND_DELIMITER) {
-      /* if we got gibberish or data was dropped, the delimiter is not the first byte seen,
-       * which will cause us to get into a flush loop. This is fine only b/c we don't expect
-       * continuous data over the serial port, so it's fine to keep flushing it until the other
-       * side pauses in sending. At that point we'll catch up and re-sync with the other side
-       */
-      Serial.flush();
-      return;
-    }
-
-    // correctly synced w/ other side on a delimiter byte, now check opcode
-    switch (opcode) {
-      case COMMAND_RESET:
-        state = STATE_START; // eventually will call reset() on next looper pass
-        break;
-      case COMMAND_TIME_INIT:
-        start = millis();
-        while ((millis() - start) < 10) {
-          if (Serial.available() >= 4)
-            break;
-        }
-        // data shouldn't be arriving slowly or in chunks, so give up after waiting briefly
-        if (Serial.available() < 4) {
-          Serial.flush(); // results in a flush loop until we catch up with other side
-        } else {
-          // we have everything we need, now just set the time
-          wall_time.raw  = ((((unsigned long)Serial.read()) << 24) & 0xff000000);
-          wall_time.raw |= ((((unsigned long)Serial.read()) << 16) & 0xff0000);
-          wall_time.raw |= ((((unsigned long)Serial.read()) << 8) & 0xff00);
-          wall_time.raw |= (((unsigned long)Serial.read()) & 0xff);
-	  wall_time.init = 1;
-          //if (state == STATE_TIME_UNSET)
-          //  state = STATE_DAYTIME;
-        }
-        break;
-      default:
-        // unknown opcode == another flush/resync
-        Serial.flush();
-    }
-  }
-}
-
-void update_state() {
+void loop() {
   static uint8_t reading;
   static uint64_t current_millis;
   for (int i = 2; i < 9; ++i) {
-    if (strcmp(DIGITAL_PIN_NAMES[i], "") == 0) {
+    if (PIN_TYPE[i] == PIN_TYPE_UNUSED) {
       continue;
     }
+
+    // query the world
     reading = digitalRead(i);
     current_millis = millis();
-    if (reading != DIGITAL_PIN_STATE[i]) {
-      DIGITAL_DEBOUNCE[i] = current_millis;
-      DIGITAL_PIN_STATE[i] = reading;
-    } else {
-      if (DIGITAL_DEBOUNCE[i] != 0) {
-        if ((current_millis - DIGITAL_DEBOUNCE[i]) > DEBOUNCE_MILLIS) {
-          DIGITAL_DEBOUNCE[i] = 0;
+
+    switch(PIN_TYPE[i]) {
+    case PIN_TYPE_SWITCH: // simple debounce of a mechanical switch
+      if (reading != PIN_STATE[i]) {
+        DEBOUNCE_LAST_CHANGED[i] = current_millis;
+        PIN_STATE[i] = reading;
+      } 
+
+      // if a debounce is pending, check to see if settle timeout has elapsed
+      if (DEBOUNCE_LAST_CHANGED[i] != 0) {
+        if ((current_millis - DEBOUNCE_LAST_CHANGED[i]) >= DEBOUNCE_TIMEOUT[i]) {
+          DEBOUNCE_LAST_CHANGED[i] = 0;
           Serial.print("{\"Which\":\"");
-          Serial.print(DIGITAL_PIN_NAMES[i]);
+          Serial.print(PIN_ID[i]);
           Serial.print("\",\"Action\":");
-          Serial.print(digitalRead(i));
+          Serial.print(reading);
           Serial.println("}");
         }
       }
+      break;
+
+    case PIN_TYPE_RINGER:
+      // A ringer type pins oscillates from 0 to 1 and back, instead of flatly
+      // going from 0 to 1. That is, the duration of an event on an analog pin
+      // is simply the duration in which the pin reported a value of TRIP; but
+      // the duration of an event on a ringer pin is the duration in which the
+      // device is ringing its signal line. As a result, a ringer type pin's
+      // state is not directly tied to its value. Instead, it enters the
+      // TRIP state when the first TRIP reading is seen, but it remains in
+      // that state until the value settles back at RESET. So basically we
+      // enter TRIP right away, and report a single RESET when we debounce
+      // the raw pin reading back to RESET.
+
+      // When we see a transition from RESET to TRIP, record TRIP as the new
+      // state of the pin, and immediately report the TRIP event
+      if ((reading == 0) && (PIN_STATE[i] == 1)) {
+          PIN_STATE[i] = 0;
+          Serial.print("{\"Which\":");
+          Serial.print(PIN_ID[i]);
+          Serial.println(",\"Action\": 0}");
+      }
+      if (PIN_STATE[i] == 0) {
+        if (reading == 0) {
+          // If we see a raw TRIP reading on the pin, that means it's not done
+          // ringing yet, so update our debounce origin to the current time
+          DEBOUNCE_LAST_CHANGED[i] = current_millis;
+        } else {
+          // Line is reporting RESET, but debounce that signal to make sure
+          // it's not still ringing
+          if (current_millis - DEBOUNCE_LAST_CHANGED[i] > DEBOUNCE_TIMEOUT[i]) {
+            // Ringing is over; report a RESET and take us out of the TRIP state
+            Serial.print("{\"Which\":");
+            Serial.print(PIN_ID[i]);
+            Serial.println(",\"Action\": 1}");
+            PIN_STATE[i] = 1;
+            DEBOUNCE_LAST_CHANGED[i] = 0;
+          }
+        }
+      }
+      // If we are not in a state of TRIP, do nothing
+      break;
+
+    default:
+      break;
     }
-  }
-}
-
-/* Dumps the full state of the system for the other side to peruse. Because we dump our state
- * periodically, we don't need to worry about responding to commands -- the other side can
- * just monitor for changes in state.
- */
-void dump_state() {
-  Serial.print("state=");
-  switch(state) {
-    case STATE_START:
-      Serial.println("START");
-      break;
-    case STATE_TIME_UNSET:
-      Serial.println("TIME_UNSET");
-      break;
-  }
-  for (int i = 2; i < 9; ++i) {
-    if (strcmp(DIGITAL_PIN_NAMES[i], "") == 0) {
-      continue;
-    }
-    Serial.print("{\"Name\":\"");
-    Serial.print(DIGITAL_PIN_NAMES[i]);
-    Serial.print("\",\"Action\":\"");
-    Serial.print(digitalRead(i) == LOW ? "TRIP" : "RESET");
-    Serial.println("\"}");
-  }
-}
-
-void loop() {
-  unsigned long tmp = 0;
-  static unsigned long prev_millis = 0;
-
-  current_millis = millis();
-
-  if (wall_time.init) {
-    tmp = current_millis / 1000;
-    if (tmp != prev_millis) {
-      prev_millis = tmp;
-      wall_time.raw++;
-    }
-    wall_time.seconds = wall_time.raw % 60;
-    wall_time.minutes = (wall_time.raw / 60) % 60;
-    wall_time.hours = (wall_time.raw / (60 * 60)) % 24;
-  }
-
-  switch(state) {
-    case STATE_START:
-      reset();
-      break;
-    case STATE_TIME_UNSET:
-      // no-op: do nothing until we get an incoming command to set the time
-      break;
-  }
-  
-  process_incoming();
-
-  update_state();
-  if ((current_millis - state_dump_time) > STATE_DUMP_INTERVAL) {
-    //dump_state();
-    state_dump_time = current_millis;
   }
 }
 
