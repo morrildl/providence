@@ -222,7 +222,7 @@ func recorder(incoming chan event, outgoing chan event) {
   defer insert.Close()
   for {
     event := <-incoming
-    insert.Exec(event.Which, event.Action)
+    insert.Exec(config.SensorNames[event.Which], event.Action)
   }
 }
 
@@ -686,7 +686,8 @@ func main() {
   // simply loop forever, sending generated events to the listeners who want to hear them
   for {
     evt := <-events
-    log.Print(evt.Which + " ", map[eventCode]string{TRIP: "Tripped", RESET: "Reset", AJAR: "Ajar", ANOMALY: "Anomaly"}[evt.Action])
+    log.Print(config.SensorNames[evt.Which] + " ",
+              map[eventCode]string{TRIP: "Tripped", RESET: "Reset", AJAR: "Ajar", ANOMALY: "Anomaly"}[evt.Action])
     for _, h := range handlers {
       _, ok := h.eventCodes[evt.Action]
       if ok {
