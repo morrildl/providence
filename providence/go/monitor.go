@@ -45,6 +45,7 @@ var config struct {
   HttpPort int
   DatabasePath string
   MockTty bool
+  Debug bool
   OAuthToken string
   SensorNames map[string]string
   SensorTypes map[string]sensorType
@@ -66,12 +67,14 @@ func loadConfig() {
   var flagDatabase string
   var configFile string
   var mockTty bool
+  var debug bool
   var oAuthToken string
   flag.StringVar(&configFile, "config", "./monitor.json", "fully qualified path to the JSON config file")
   flag.IntVar(&flagPort, "port", 4280, "port of the HTTP server")
   flag.StringVar(&flagTty, "tty", "/dev/ttyUSB0", "USB TTY file connected to the Arduino")
   flag.StringVar(&flagDatabase, "database", "./monitor.sqlite3", "fully qualified path to the sqlite3 database file")
   flag.BoolVar(&mockTty, "mocktty", false, "use an HTTP server on :4281 instead of a TTY")
+  flag.BoolVar(&debug, "debug", false, "use an HTTP server on :4281 instead of a TTY")
   flag.StringVar(&oAuthToken, "oauth", "", "specify the OAuth token to send to GCM")
   flag.Parse()
 
@@ -98,6 +101,9 @@ func loadConfig() {
   }
   if mockTty {
     config.MockTty = mockTty
+  }
+  if debug {
+    config.Debug = debug
   }
   if oAuthToken != "" {
     config.OAuthToken = oAuthToken
@@ -365,10 +371,11 @@ type regIdUpdate struct {
 /* Spin up a goroutine that records user devices' change requests to the reg
  * ID list in the SQLite database.
  */
-func regIdPersisterEscalatorHelper() chan regIdUpdate {
+func regIdPersisterEscalatorHelper() (chan regIdUpdate, chan chan []string) {
   updateChan := make(chan regIdUpdate)
+  queryChan := make(chan chan []string)
 
-  go func (updateChan chan regIdUpdate) {
+  go func () {
     db, err := sql.Open("sqlite3", config.DatabasePath)
     if err != nil {
       log.Fatal("ERROR: escalator failed opening ", config.DatabasePath)
@@ -392,17 +399,36 @@ func regIdPersisterEscalatorHelper() chan regIdUpdate {
       log.Print("regId updater failed to prepare delete", err)
     }
     defer deleteStmt.Close()
+    selectStmt, err := db.Prepare("select reg_id from reg_ids")
+    if err != nil {
+      log.Print("regId updater failed to prepare select", err)
+    }
+    defer selectStmt.Close()
 
     // listen for updates & take the appropriate action
     for {
       select {
+      case responseChan := <-queryChan:
+        rowIds := make([]string, 0)
+        rows, err := selectStmt.Query()
+        if err != nil {
+          log.Print("ERROR: persister failed to unmarshal known regIds")
+          // let rowIds be empty so we send it on responseChan
+        } else {
+          for rows.Next() {
+            var s string
+            rows.Scan(&s)
+            rowIds = append(rowIds, s)
+          }
+        }
+        responseChan <- rowIds
       case update := <-updateChan:
         log.Print("Starting persistence request")
         if update.Remove {
           // Basic delete.
           _, err = deleteStmt.Exec(update.RegId)
           if err != nil {
-            log.Print("WARNING: failed on insert", err)
+            log.Print("WARNING: failed on delete", err)
           }
         } else if update.CanonicalRegId != "" {
           // To handle the case where the server sends us a canonicalization
@@ -448,9 +474,9 @@ func regIdPersisterEscalatorHelper() chan regIdUpdate {
         }
       }
     }
-  }(updateChan)
+  }()
 
-  return updateChan
+  return updateChan, queryChan
 }
 
 /* Represents a registration ID operation from a user device */
@@ -458,14 +484,20 @@ type regIdRequest struct {
   regId string
   remove bool
 }
+/* Represents a URL to send via GCM to all registered devices */
+type gcmSendUrlRequest struct {
+  url string
+  skip string
+}
 /* Spins up an HTTP server in a goroutine to which user devices make requests
  * to add & delete registration IDs, per the GCM spec. Server also implements
  * a trivial heartbeat URL that devices can use to detect if the monitor goes
  * offline, and notify locally.
  */
-func escalatorHttpHelper() chan regIdRequest {
+func escalatorHttpHelper() (chan regIdRequest, chan gcmSendUrlRequest) {
   regIdRequestChan := make(chan regIdRequest, 5)
-  go func (regIdRequestChan chan regIdRequest) {
+  gcmSendUrlChan := make(chan gcmSendUrlRequest, 5)
+  go func (regIdRequestChan chan regIdRequest, gcmSendUrlChan chan gcmSendUrlRequest) {
     // registration ID handler; RESTful:
     // - POST = add reg ID(s) listed in body
     // - DELETE = discard reg ID(s) listed in body
@@ -481,49 +513,176 @@ func escalatorHttpHelper() chan regIdRequest {
         }
       }
       writer.WriteHeader(http.StatusOK)
-      io.WriteString(writer, "OK")
+      io.WriteString(writer, "OK\n")
     })
 
     // heartbeat URL: always returns code=200 with message of "HI"
     http.HandleFunc("/heartbeat", func(writer http.ResponseWriter, req *http.Request) {
       writer.WriteHeader(http.StatusOK)
-      io.WriteString(writer, "HI")
+      io.WriteString(writer, "HI\n")
+    })
+
+    // Send a VBOF URL to subscribers
+    http.HandleFunc("/vbof", func(writer http.ResponseWriter, req *http.Request) {
+      body, err := ioutil.ReadAll(req.Body)
+      if err != nil {
+        log.Print("WARNING: failure reading body in /vbof", err)
+      } else {
+        lines := strings.Split(string(body), "\n")
+        if len(lines) < 1 || len(lines) > 2 {
+          log.Print("WARNING: unexpected number of lines in /vbof", lines)
+        } else {
+          if len(lines) == 2 {
+            gcmSendUrlChan <- gcmSendUrlRequest{lines[0], ""}
+          } else {
+            gcmSendUrlChan <- gcmSendUrlRequest{lines[0], lines[1]}
+          }
+        }
+      }
+      writer.WriteHeader(http.StatusOK)
+      io.WriteString(writer, "OK\n")
     })
 
     // listen on the configured port
     log.Print(http.ListenAndServe(":" + strconv.Itoa(config.HttpPort), nil))
-  }(regIdRequestChan)
-  return regIdRequestChan
+  }(regIdRequestChan, gcmSendUrlChan)
+  return regIdRequestChan, gcmSendUrlChan
 }
 
-/* Returns all GCM registration (device) IDs stored in the database. This DB
- * is used for the persistent store for these IDS, so this function exists to
- * be called on startup. The escalator is expected to keep the resulting
- * stucture up to date, once loaded.
- *
- * Uses a map to get fast lookups. This structure is expected to change only
- * rarely.
- */
-func loadKnownRegIds() map[string]int {
-  regIds := make(map[string]int)
-  db, err := sql.Open("sqlite3", config.DatabasePath)
-  if err != nil {
-    log.Fatal("ERROR: escalator failed opening ", config.DatabasePath)
-    return nil
+
+type gcmPayload struct {
+  EventCode string
+  EventName string
+  WhichId string
+  WhichName string
+  SensorType string
+  SensorTypeName string
+  When time.Time
+  Url string
+}
+type gcmSendRequest struct {
+  payload gcmPayload
+  skip []string
+}
+func gcmEscalatorHelper(regIdUpdateSink chan regIdUpdate, regIdQueryHelper chan chan []string) chan gcmSendRequest {
+  type gcmRequest struct {
+    RegistrationIds []string `json:"registration_ids"`
+    Data gcmPayload `json:"data"`
   }
-  defer db.Close()
-  rows, err := db.Query("select * from reg_ids")
-  if err != nil {
-    log.Print("ERROR: escalator failed to unmarshal known regIds")
-    return nil
-  }
-  for rows.Next() {
-    var regId string
-    rows.Scan(&regId)
-    regIds[regId] = 0
+  type gcmResponse struct {
+    MulticastId uint64 `json:"multicast_id"`
+    Success int `json:"success"`
+    Failure int `json:"failure"`
+    CanonicalIds int `json:"canonical_ids"`
+    Results []struct {
+      MessageId string `json:"message_id"`
+      RegistrationId string `json:"registration_id"`
+      Error string `json:"error"`
+    } `json:"results"`
   }
 
-  return regIds
+  // define some constants and structs used only for JSON data formatting
+  // & communication with GCM
+  const (
+    GCM_URL = "https://android.googleapis.com/gcm/send"
+    GCM_MIMETYPE = "application/json"
+  )
+
+  sendQueue := make(chan gcmSendRequest, 10)
+
+  go func () {
+    regIdsReturnChan := make(chan []string) // unbuffered
+
+    for {
+      select {
+      case request := <-sendQueue:
+        // send the database helper our channel & block on it to hear rowIds in response
+        regIdQueryHelper <- regIdsReturnChan
+        regIds := <-regIdsReturnChan
+
+        if len(request.skip) > 0 {
+          newRegIds := make([]string, 0)
+          for _, regId := range regIds {
+            skip := false
+            for _, skipId := range request.skip {
+              if regId == skipId {
+                skip = true
+                break
+              }
+            }
+            if !skip {
+              newRegIds = append(newRegIds, regId)
+            }
+          }
+          regIds = newRegIds
+        }
+
+        if len(regIds) == 0 {
+          // no recipients == nothing to do
+          continue
+        }
+
+        // format up a GCM JSON message for the request
+        j, ok := json.Marshal(gcmRequest{regIds, request.payload})
+        if config.Debug {
+          log.Print("DEBUG: GCM request as follows:")
+          log.Print(string(j))
+        }
+        if ok != nil {
+          log.Print("JSON failure during encode for GCM", ok)
+          break
+        }
+
+        // send the event to GCM server via HTTP POST, per spec
+        req, err := http.NewRequest("POST", GCM_URL, bytes.NewReader(j))
+        if err != nil {
+          log.Print("Failed to create GCM HTTP request", err)
+          break
+        }
+        req.Header.Add("Authorization", "key=" + config.OAuthToken)
+        req.Header.Add("Content-Type", GCM_MIMETYPE)
+        client := &http.Client{}
+        resp, err := client.Do(req)
+        if err != nil {
+          log.Print("GCM request failed during execution", err)
+          break
+        }
+        defer resp.Body.Close()
+
+        // look at the JSON response from GCM server & take any actions indicated
+        body, err := ioutil.ReadAll(resp.Body)
+        if err == nil && len(body) > 0 {
+          if config.Debug {
+            log.Print("DEBUG: GCM response payload as follows:")
+            log.Print(string(body))
+          }
+          var jsonResponse gcmResponse
+          jsonErr := json.Unmarshal(body, &jsonResponse)
+          if jsonErr != nil {
+            log.Print("JSON unmarshal failure on GCM response: ", jsonErr)
+            log.Print(string(body))
+            break
+          }
+          log.Print("GCM response summary: success: ", jsonResponse.Success, "; failure: ", jsonResponse.Failure)
+          for i, oldId := range regIds {
+            result := jsonResponse.Results[i]
+
+            // GCM server sent a "canonical registration ID" message; update our list accordingly
+            if result.RegistrationId != "" {
+              regIdUpdateSink <- regIdUpdate{oldId, result.RegistrationId, false}
+            }
+
+            // check to see if the reg ID had a permanent error, and if so remove from the list
+            if result.Error != "" && result.Error != "Unavailable" {
+              regIdUpdateSink <- regIdUpdate{oldId, "", true}
+            }
+          }
+        }
+      } // select
+    } //for
+  }()
+
+  return sendQueue
 }
 
 /* Watches for higher-level event types and escalates them for
@@ -532,125 +691,27 @@ func loadKnownRegIds() map[string]int {
  */
 func gcmEscalator(incoming chan event, outgoing chan event) {
   // start database persister thread, and load stored list from last execution
-  regIdUpdateSink := regIdPersisterEscalatorHelper()
-  regIds := loadKnownRegIds()
-  var regIdList []string // done up front so we don't repeat this work for every GCM message
-  for k := range regIds {
-    regIdList = append(regIdList, k)
-  }
+  regIdUpdateSink, regIdQueryHandler := regIdPersisterEscalatorHelper()
 
   // start the HTTP server which is our source for regID creates & deletes
-  regIdHttpSource := escalatorHttpHelper()
+  regIdHttpSource, gcmRequestSource := escalatorHttpHelper()
+
+  // start the GCM helper
+  gcmMessageSink := gcmEscalatorHelper(regIdUpdateSink, regIdQueryHandler)
 
   // check each raw event and synthesize higher level events as appropriate
   for {
     select {
     case regId := <-regIdHttpSource:
-      // HTTP server is reporting a regID create, delete, or update operation
-      if regId.remove { // deleting an existing regId
-        delete(regIds, regId.regId)
-      } else { // adding a new RegId
-        regIds[regId.regId] = 0
-      }
       regIdUpdateSink <- regIdUpdate{regId.regId, "", regId.remove}
-      regIdList = []string{}
-      for k := range regIds { // rebuild our cache
-        regIdList = append(regIdList, k)
-      }
+    case urlRequest := <-gcmRequestSource:
+      // New VBOF URL request
+      gcmMessageSink <- gcmSendRequest{gcmPayload{Url: urlRequest.url}, []string{urlRequest.skip}}
     case ev := <-incoming:
       // New monitoring event from the dispatcher.
-
-      if len(regIds) < 1 {
-        log.Print("No registered devices, skipping event", ev)
-        break
-      }
-
-      // define some constants and structs used only for JSON data formatting
-      // & communication with GCM
-      const (
-        GCM_URL = "https://android.googleapis.com/gcm/send"
-        GCM_MIMETYPE = "application/json"
-      )
-      type gcmPayload struct {
-        EventCode string
-        EventName string
-        WhichId string
-        WhichName string
-        SensorType string
-        SensorTypeName string
-        When time.Time
-      }
-      type gcmRequest struct {
-        RegistrationIds []string `json:"registration_ids"`
-        Data gcmPayload `json:"data"`
-      }
-      type gcmResponse struct {
-        MulticastId uint64 `json:"multicast_id"`
-        Success int `json:"success"`
-        Failure int `json:"failure"`
-        CanonicalIds int `json:"canonical_ids"`
-        Results []struct {
-          MessageId string `json:"message_id"`
-          RegistrationId string `json:"registration_id"`
-          Error string `json:"error"`
-        } `json:"results"`
-      }
-
-      // format up a GCM JSON message for the event
-      j, ok := json.Marshal(gcmRequest{regIdList, gcmPayload{
+      gcmMessageSink <- gcmSendRequest{gcmPayload{ // GCM only supports strings so we can't be very typesafe here
         strconv.Itoa(int(ev.Action)), eventNames[ev.Type][ev.Action], ev.Which, config.SensorNames[ev.Which],
-        strconv.Itoa(int(ev.Type)), sensorTypeNames[ev.Type], ev.When,
-      }})
-      if ok != nil {
-        log.Print("JSON failure during encode for GCM", ok)
-        break
-      }
-
-      // send the event to GCM server via HTTP POST, per spec
-      req, err := http.NewRequest("POST", GCM_URL, bytes.NewReader(j))
-      if err != nil {
-        log.Print("Failed to create GCM HTTP request", err)
-        break
-      }
-      req.Header.Add("Authorization", "key=" + config.OAuthToken)
-      req.Header.Add("Content-Type", GCM_MIMETYPE)
-      client := &http.Client{}
-      resp, err := client.Do(req)
-      if err != nil {
-        log.Print("GCM request failed during execution", err)
-        break
-      }
-      defer resp.Body.Close()
-
-      // look at the JSON response from GCM server & take any actions indicated
-      body, err := ioutil.ReadAll(resp.Body)
-      if err == nil && len(body) > 0 {
-        var jsonResponse gcmResponse
-        jsonErr := json.Unmarshal(body, &jsonResponse)
-        if jsonErr != nil {
-          log.Print("JSON unmarshal failure on GCM response: ", jsonErr)
-          log.Print(string(body))
-          break
-        }
-        log.Print("GCM response summary: success: ", jsonResponse.Success, "; failure: ", jsonResponse.Failure)
-        for i, oldId := range regIdList {
-          result := jsonResponse.Results[i]
-
-          // GCM server sent a "canonical registration ID" message; update our list accordingly
-          if result.RegistrationId != "" {
-            regIdUpdateSink <- regIdUpdate{oldId, result.RegistrationId, false}
-            delete(regIds, oldId)
-            regIds[result.RegistrationId] = 0
-            regIdList = []string{}
-            for k := range regIds {
-              regIdList = append(regIdList, k)
-            }
-          }
-
-          // TODO: inspect result for failure; need to determine a retry policy, first
-        }
-      } else {
-        log.Print("HTTP error or empty response from GCM ", err, " ", string(body))
+        strconv.Itoa(int(ev.Type)), sensorTypeNames[ev.Type], ev.When, ""}, []string{},
       }
     }
   }
