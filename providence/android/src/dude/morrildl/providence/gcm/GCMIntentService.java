@@ -26,6 +26,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
 import android.util.Log;
 
 import com.google.android.gcm.GCMBaseIntentService;
@@ -51,7 +52,27 @@ public class GCMIntentService extends GCMBaseIntentService {
 
 	@Override
 	protected void onMessage(Context context, Intent intent) {
-		boolean isMotion = (Integer.parseInt(intent.getStringExtra("SensorType")) == 2);
+		String url = intent.getStringExtra("Url");
+		if (!"".equals(url)) {
+			Intent i = new Intent(Intent.ACTION_VIEW);
+			i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+			i.setData(Uri.parse(url));
+			PendingIntent pi = PendingIntent.getActivity(context, 43, i, 0);
+			Notification n = (new Notification.Builder(context))
+					.setContentTitle(
+							context.getResources().getString(
+									R.string.vbof_notif)).setContentIntent(pi)
+					.setSmallIcon(R.drawable.ic_stat_event).setAutoCancel(true)
+					.getNotification();
+			((NotificationManager) context
+					.getSystemService(Context.NOTIFICATION_SERVICE)).notify(43,
+					n);
+
+			return;
+		}
+
+		boolean isMotion = (Integer.parseInt(intent
+				.getStringExtra("SensorType")) == 2);
 		boolean notifyOnMotion = false;
 		boolean skipMotionUpdate = false;
 

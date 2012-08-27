@@ -12,6 +12,8 @@
     <string name="latest_event_default_text">Odd! Could not find details for that event.</string>
     <string name="event_history_default_text">Event history will appear here.</string>
     <string name="unknown_image">Unspecified image.</string>
+    <string name="vbof_notif">VBOF!!!!</string>
+    <string name="vbof_name">VBOF!!!!</string>
     
     <string-array name="providence_action_list">
         <item>History</item>

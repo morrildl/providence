@@ -28,6 +28,7 @@ import (
   "strconv"
   "strings"
   "time"
+  "net/url"
   _ "github.com/mattn/go-sqlite3"
 )
 
@@ -528,14 +529,26 @@ func escalatorHttpHelper() (chan regIdRequest, chan gcmSendUrlRequest) {
       if err != nil {
         log.Print("WARNING: failure reading body in /vbof", err)
       } else {
-        lines := strings.Split(string(body), "\n")
-        if len(lines) < 1 || len(lines) > 2 {
-          log.Print("WARNING: unexpected number of lines in /vbof", lines)
+        bodyStr := string(body)
+        if (bodyStr == "") {
+          log.Print("WARNING: empty body in /vbof")
         } else {
-          if len(lines) == 2 {
-            gcmSendUrlChan <- gcmSendUrlRequest{lines[0], ""}
+          bodyStr, _ = url.QueryUnescape(bodyStr)
+          lines := strings.Split(bodyStr, "\n")
+          if len(lines) < 1 || len(lines) > 2 {
+            log.Print("WARNING: unexpected number of lines in /vbof", lines)
           } else {
-            gcmSendUrlChan <- gcmSendUrlRequest{lines[0], lines[1]}
+            uri := lines[0]
+            _, err := url.Parse(uri)
+            if err != nil {
+              log.Print("WARNING: input does not look like a URL", uri)
+            } else {
+              if len(lines) == 1 {
+                gcmSendUrlChan <- gcmSendUrlRequest{lines[0], ""}
+              } else {
+                gcmSendUrlChan <- gcmSendUrlRequest{lines[0], lines[1]}
+              }
+            }
           }
         }
       }
