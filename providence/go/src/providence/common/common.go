@@ -39,7 +39,7 @@ func (sensor Sensor) KindName() string {
   return map[SensorType]string{
     WINDOW: "Window",
     DOOR: "Door",
-    MOTION: "Motion Detector",
+    MOTION: "Motion Sensor",
   }[sensor.Kind]
 }
 
