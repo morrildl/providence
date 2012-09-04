@@ -1,7 +1,7 @@
 pkg
-src
 test.go
 tmp.*
 monitor
 *.sqlite3
 monitor.json
+src/github.com
