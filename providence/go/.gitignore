@@ -5,3 +5,5 @@ monitor
 *.sqlite3
 monitor.json
 src/github.com
+config.json
+main
