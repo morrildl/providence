@@ -1,15 +1,16 @@
+- add web cam support
+- daemonize process
+- add an exclusion window override -- i.e. "armed mode" (requires new URL handler)
+- HTTPS
+- some kind of auth system for reg IDs
 - smarter notification behaviors for ajar & anomalies
   - policies?
   - coalesce GCM notifications?
-- add web cam support
-- move the various handlers to separate Go packages & detect handlers via tag strings?
-- handle GCM errors
-- some kind of auth system for reg IDs
-- HTTPS
 - add a handler for firing the physical alarm (requires ability to send to Arduino)
-- add an exclusion window override -- i.e. "armed mode" (requires new URL handler)
 
 
+- DONE - handle GCM errors
+- DONE - refactor into sensible Go packages
 - DONE - persistence for reg IDs
 - DONE - build in a heartbeat -- i.e. for phone to know that monitor is offline
 - DONE - GCM details (canonical IDs, etc.)
