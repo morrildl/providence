@@ -1,14 +1,18 @@
-- add web cam support
 - daemonize process
+- review logging
+- Finish VBOF
 - add an exclusion window override -- i.e. "armed mode" (requires new URL handler)
 - HTTPS
-- some kind of auth system for reg IDs
+- Authentication
+  - Need to add OAuth2 (or similar) checks when adding RegIds
+  - Need to add OAuth2 (or similar) checks when requesting /photos or /photo/*
 - smarter notification behaviors for ajar & anomalies
   - policies?
   - coalesce GCM notifications?
 - add a handler for firing the physical alarm (requires ability to send to Arduino)
 
 
+- DONE - add web cam support (capture, rules, purge, list, and access)
 - DONE - handle GCM errors
 - DONE - refactor into sensible Go packages
 - DONE - persistence for reg IDs

@@ -101,6 +101,7 @@ var Config struct {
   AjarThreshold time.Duration
   ImageRetention string
   ImageDirectory string
+  ImageUrlRoot string
   CameraConfig map[string][]struct {
     Url string
     Interval int

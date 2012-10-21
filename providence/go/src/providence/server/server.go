@@ -15,11 +15,14 @@
 package server
 
 import (
+  "encoding/json"
   "io"
   "io/ioutil"
   "log"
   "net/http"
   "net/url"
+  "os"
+  "path/filepath"
   "strconv"
   "strings"
 
@@ -95,6 +98,113 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       }
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, "OK\n")
+    })
+
+    // a way for an app to query a list of photo URLs for a given ID
+    // The ID will have been sent to the app via GCM; this is how it pulls
+    // photos, if any. This returns only the list, it does NOT return JPEG
+    // data.
+    http.HandleFunc("/photos", func(writer http.ResponseWriter, req *http.Request) {
+      doerr := func() {
+        writer.WriteHeader(http.StatusInternalServerError)
+        io.WriteString(writer, "FAIL")
+      }
+
+      body, err := ioutil.ReadAll(req.Body)
+      if err != nil {
+        log.Print("WARNING: failure reading body in /photos", err)
+        doerr()
+        return
+      }
+
+      dir, err := os.Open(common.Config.ImageDirectory)
+      if err != nil {
+        log.Print("ERROR: failed to open " + common.Config.ImageDirectory)
+        doerr()
+        return
+      }
+      defer dir.Close()
+      finfos, err := dir.Readdir(-1)
+      if err != nil {
+        log.Print("ERROR: failed to enumerate " + common.Config.ImageDirectory)
+        doerr()
+        return
+      }
+
+      imagesById := make(map[string][]string)
+      for _, finfo := range finfos {
+        if finfo.IsDir() || !(strings.HasSuffix(finfo.Name(), ".jpg") || strings.HasSuffix(finfo.Name(), ".jpeg")) {
+          continue
+        }
+        split := strings.SplitN(finfo.Name(), "-", 2)
+        images, ok := imagesById[split[0]]
+        if !ok {
+          images = make([]string, 0)
+        }
+        imagesById[split[0]] = append(images, finfo.Name())
+      }
+
+      urlsById := make(map[string][]string)
+      for _, id := range strings.Split(string(body), "\n") {
+        if len(id) == 0 {
+          continue
+        }
+        files, ok := imagesById[id]
+        if !ok || len(files) < 1 {
+          continue
+        }
+        urls := make([]string, 0)
+        for _, file := range files {
+          urls = append(urls, common.Config.ImageUrlRoot + file)
+        }
+        urlsById[id] = urls
+      }
+
+      bodyStr, err := json.Marshal(urlsById)
+      if err != nil {
+        log.Print("ERROR: could not marshal to JSON")
+        log.Print(urlsById)
+        doerr()
+        return
+      }
+      if common.Config.Debug {
+        log.Print("Marshaled JSON:")
+        log.Print(string(bodyStr))
+      }
+
+      writer.Header().Add("Content-Type", "application/json")
+      writer.Header().Add("Content-Length", strconv.Itoa(len(bodyStr)))
+      writer.WriteHeader(http.StatusOK)
+      io.WriteString(writer, string(bodyStr))
+    })
+
+    // fetch and return an indicated photo
+    http.HandleFunc("/photo/", func(writer http.ResponseWriter, req *http.Request) {
+      fnames := strings.Split(req.URL.Path, "/")
+      if len(fnames) != 3 {
+        // means there is one or more extra chunks in there, which could be an attack; do nothing
+        writer.WriteHeader(http.StatusNotFound)
+        return
+      }
+      fname := fnames[len(fnames) - 1]
+      fpath := filepath.Join(common.Config.ImageDirectory, fname)
+      f, err := os.Open(fpath)
+      if err != nil {
+        writer.WriteHeader(http.StatusNotFound)
+        return
+      }
+      defer f.Close()
+      bytes, err := ioutil.ReadAll(f)
+      if err != nil {
+        writer.WriteHeader(http.StatusInternalServerError)
+        io.WriteString(writer, "FAIL")
+        return
+      }
+      // TODO: add authentication
+      log.Print("Serving " + fname + " to " + req.RemoteAddr)
+      writer.Header().Add("Content-Type", "image/jpeg")
+      writer.Header().Add("Content-Length", strconv.Itoa(len(bytes)))
+      io.WriteString(writer, string(bytes))
     })
 
     // listen on the configured port
