@@ -1,5 +1,5 @@
 - daemonize process
-- review logging
+- add photos to app and polish up UI
 - Finish VBOF
 - add an exclusion window override -- i.e. "armed mode" (requires new URL handler)
 - HTTPS
@@ -12,6 +12,7 @@
 - add a handler for firing the physical alarm (requires ability to send to Arduino)
 
 
+- DONE - review logging
 - DONE - add web cam support (capture, rules, purge, list, and access)
 - DONE - handle GCM errors
 - DONE - refactor into sensible Go packages

@@ -18,10 +18,10 @@ import (
   "crypto/rand"
   "fmt"
   "io"
-  "log"
   "time"
 
   "providence/common"
+  "providence/log"
 )
 
 type timeWindow struct {
@@ -36,12 +36,12 @@ func parseExclusionIntervals() []timeWindow {
   for _, w := range common.Config.ExclusionIntervals {
     providedStart, err := time.Parse("3:04pm", w.Start)
     if err != nil {
-      log.Print("WARNING: exclusion interval time failed to parse ", w.Start)
+      log.Warn("policy.exclusions", "exclusion interval time failed to parse ", w.Start)
       continue
     }
     duration, err := time.ParseDuration(w.Duration)
     if err != nil {
-      log.Print("WARNING: exclusion interval duration failed to parse ", w.Duration)
+      log.Warn("policy.exclusions", "exclusion interval duration failed to parse ", w.Duration)
       continue
     }
     windows = append(windows, timeWindow{

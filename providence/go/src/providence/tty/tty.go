@@ -18,13 +18,13 @@ import (
   "bufio"
   "encoding/json"
   "io"
-  "log"
   "net/http"
   "os"
   "strconv"
   "time"
 
   "providence/common"
+  "providence/log"
 )
 
 /* Reads a USB TTY looking for JSON messages from a hardware monitor and
@@ -36,7 +36,7 @@ import (
 func Reader(incoming chan common.Event, outgoing chan common.Event) {
   file, err := os.Open(common.Config.Tty)
   if err != nil {
-    log.Fatal("Error opening ", common.Config.Tty, ", aborting ", err)
+    log.Error("tty.reader", "error opening ", common.Config.Tty, ", aborting ", err)
     return
   }
 
@@ -52,7 +52,7 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
     if err == nil {
       outgoing <- common.Event{Which:common.Sensors[e.Which], Action:common.EventCode(e.Action), When:time.Now()}
     } else {
-      log.Println("WARNING: JSON parse error on tty")
+      log.Warn("tty.reader", "JSON parse error from tty")
     }
   }
 }
@@ -66,7 +66,7 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
     http.HandleFunc("/fake", func(writer http.ResponseWriter, req *http.Request) {
       err := req.ParseForm()
       if err != nil {
-        log.Print("WARNING: error parsing form in TTY helper: ", err)
+        log.Warn("tty.mock", "error parsing form in TTY helper: ", err)
       } else {
         which := req.Form["w"][0]
         action, _ := strconv.Atoi(req.Form["a"][0])
@@ -76,7 +76,7 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
       io.WriteString(writer, "OK")
     })
 
-    log.Print(http.ListenAndServe(":" + strconv.Itoa(common.Config.HttpPort + 1), nil))
+    log.Error("tty.mock", "unexpected server shutdown", http.ListenAndServe(":" + strconv.Itoa(common.Config.HttpPort + 1), nil))
   }(c)
   for {
     b := <-c

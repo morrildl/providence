@@ -18,7 +18,6 @@ import (
   "encoding/json"
   "io"
   "io/ioutil"
-  "log"
   "net/http"
   "net/url"
   "os"
@@ -28,6 +27,7 @@ import (
 
   "providence/common"
   "providence/db"
+  "providence/log"
 )
 
 type ShareUrlRequest struct {
@@ -49,9 +49,9 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     http.HandleFunc("/regid", func(writer http.ResponseWriter, req *http.Request) {
       body, err := ioutil.ReadAll(req.Body)
       if err != nil {
-        log.Print("HTTP request read failure", err)
+        log.Warn("server.RegID", "HTTP request read failure", err)
       } else {
-        log.Print("/regid: ", req.Method)
+        log.Status("server.RegID", "/regid: ", req.Method)
         remove := req.Method == "DELETE"
         for _, s := range strings.Split(string(body), "\n") {
           regIdRequestChan <- db.RegIdUpdate{s, "", remove}
@@ -71,21 +71,21 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     http.HandleFunc("/vbof", func(writer http.ResponseWriter, req *http.Request) {
       body, err := ioutil.ReadAll(req.Body)
       if err != nil {
-        log.Print("WARNING: failure reading body in /vbof", err)
+        log.Warn("server.vbof", "failure reading body in /vbof", err)
       } else {
         bodyStr := string(body)
         if (bodyStr == "") {
-          log.Print("WARNING: empty body in /vbof")
+          log.Warn("server.vbof", "empty body in /vbof")
         } else {
           bodyStr, _ = url.QueryUnescape(bodyStr)
           lines := strings.Split(bodyStr, "\n")
           if len(lines) < 1 || len(lines) > 2 {
-            log.Print("WARNING: unexpected number of lines in /vbof", lines)
+            log.Warn("server.vbof", "unexpected number of lines in /vbof", lines)
           } else {
             uri := lines[0]
             _, err := url.Parse(uri)
             if err != nil {
-              log.Print("WARNING: input does not look like a URL", uri)
+              log.Warn("server.vbof", "input does not look like a URL", uri)
             } else {
               skip := make([]string, 0)
               if len(lines) > 1 {
@@ -112,21 +112,21 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
 
       body, err := ioutil.ReadAll(req.Body)
       if err != nil {
-        log.Print("WARNING: failure reading body in /photos", err)
+        log.Warn("server.photos", "failure reading body in /photos", err)
         doerr()
         return
       }
 
       dir, err := os.Open(common.Config.ImageDirectory)
       if err != nil {
-        log.Print("ERROR: failed to open " + common.Config.ImageDirectory)
+        log.Error("server.photos", "failed to open " + common.Config.ImageDirectory)
         doerr()
         return
       }
       defer dir.Close()
       finfos, err := dir.Readdir(-1)
       if err != nil {
-        log.Print("ERROR: failed to enumerate " + common.Config.ImageDirectory)
+        log.Error("server.photos", "failed to enumerate " + common.Config.ImageDirectory)
         doerr()
         return
       }
@@ -162,15 +162,13 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
 
       bodyStr, err := json.Marshal(urlsById)
       if err != nil {
-        log.Print("ERROR: could not marshal to JSON")
-        log.Print(urlsById)
+        log.Error("server.photos", "could not marshal to JSON")
+        log.Error("server.photos", urlsById)
         doerr()
         return
       }
-      if common.Config.Debug {
-        log.Print("Marshaled JSON:")
-        log.Print(string(bodyStr))
-      }
+      log.Debug("server.photos", "marshaled JSON:")
+      log.Debug("server.photos", string(bodyStr))
 
       writer.Header().Add("Content-Type", "application/json")
       writer.Header().Add("Content-Length", strconv.Itoa(len(bodyStr)))
@@ -201,14 +199,16 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         return
       }
       // TODO: add authentication
-      log.Print("Serving " + fname + " to " + req.RemoteAddr)
+      log.Status("server.photo", "serving " + fname + " to " + req.RemoteAddr)
       writer.Header().Add("Content-Type", "image/jpeg")
       writer.Header().Add("Content-Length", strconv.Itoa(len(bytes)))
       io.WriteString(writer, string(bytes))
     })
 
     // listen on the configured port
-    log.Print(http.ListenAndServe(":" + strconv.Itoa(common.Config.HttpPort), nil))
+    port := strconv.Itoa(common.Config.HttpPort)
+    log.Status("server.http", "starting on port " + port)
+    log.Error("server.http", "shut down unexpectedly", http.ListenAndServe(":" + port, nil))
   }()
   return regIdRequestChan, gcmSendUrlChan
 }

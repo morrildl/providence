@@ -17,9 +17,9 @@ package db
 
 import (
   "database/sql"
-  "log"
 
   "providence/common"
+  "providence/log"
 
   _ "github.com/mattn/go-sqlite3"
 )
@@ -39,31 +39,31 @@ func init() {
   // Get a DB connection.
   db, err = sql.Open("sqlite3", common.Config.DatabasePath)
   if err != nil {
-    log.Print("ERROR: recorder failed to open ", common.Config.DatabasePath, err)
+    log.Error("db.package_init", "recorder failed to open ", common.Config.DatabasePath, err)
   }
 
   // Initialize events table prepared statements
   insertEvent, err = db.Prepare("insert into events (name, value) values (?, ?)")
   if err != nil {
-    log.Print("ERROR: recorder failed to prepare insert statement ", err)
+    log.Error("db.package_init", "ERROR: recorder failed to prepare insert statement ", err)
   }
 
   // Initialize reg_ids table prepared statements
   insertRegId, err = db.Prepare("insert or ignore into reg_ids values (?)")
   if err != nil {
-    log.Print("regId updater failed to prepare insert", err)
+    log.Error("db.package_init", "regId updater failed to prepare insert", err)
   }
   updateRegId, err = db.Prepare("update reg_ids set reg_id=? where reg_id=?")
   if err != nil {
-    log.Print("regId updater failed to prepare update", err)
+    log.Error("db.package_init", "regId updater failed to prepare update", err)
   }
   deleteRegId, err = db.Prepare("delete from reg_ids where reg_id=?")
   if err != nil {
-    log.Print("regId updater failed to prepare delete", err)
+    log.Error("db.package_init", "regId updater failed to prepare delete", err)
   }
   selectRegId, err = db.Prepare("select reg_id from reg_ids")
   if err != nil {
-    log.Print("regId updater failed to prepare select", err)
+    log.Error("db.package_init", "regId updater failed to prepare select", err)
   }
 
   // No defer foo.Close() here since this is package init(); when these go out
@@ -97,14 +97,13 @@ func StartRegIdUpdater() chan RegIdUpdate {
     for {
       select {
       case update := <-updateChan:
-        if common.Config.Debug {
-          log.Println("Starting persistence request")
-        }
+        log.Debug("db.regid_updater", "starting persistence request")
+        log.Debug("db.regid_updater", update)
         if update.Remove {
           // Basic delete.
           _, err := deleteRegId.Exec(update.RegId)
           if err != nil {
-            log.Println("WARNING: failed deleting RegID ", err)
+            log.Warn("db.regid_updater", "failed deleting RegID ", err)
           }
         } else if update.CanonicalRegId != "" {
           // To handle the case where the server sends us a canonicalization
@@ -119,24 +118,24 @@ func StartRegIdUpdater() chan RegIdUpdate {
           // the persistence store.
           tx, err := db.Begin()
           if err != nil {
-            log.Println("WARNING: failed to start a transaction for canon-RegID update ", err)
+            log.Warn("db.regid_updater", "failed to start a transaction for canon-RegID update ", err)
             break
           }
           _, err = tx.Stmt(insertRegId).Exec(update.RegId)
           if err != nil {
-            log.Println("WARNING: failed to insertOrIgnore canon-RegID ", err)
+            log.Warn("db.regid_updater", "failed to insertOrIgnore canon-RegID ", err)
             tx.Rollback()
             break
           }
           _, err = tx.Stmt(updateRegId).Exec(update.CanonicalRegId, update.RegId)
           if err != nil {
-            log.Println("WARNING: failed on update canon-RegID ", err)
+            log.Warn("db.regid_updater", "failed on update canon-RegID ", err)
             tx.Rollback()
             break
           }
           err = tx.Commit()
           if err != nil {
-            log.Println("WARNING: failed to commit canon-RegID transaction", err)
+            log.Warn("db.regid_updater", "failed to commit canon-RegID transaction", err)
             tx.Rollback()
             break
           }
@@ -145,7 +144,7 @@ func StartRegIdUpdater() chan RegIdUpdate {
           // so we can use the "INSERT OR IGNORE" query form.
           _, err := insertRegId.Exec(update.RegId)
           if err != nil {
-            log.Println("WARNING: failed on RegID insert ", err)
+            log.Warn("db.regid_updater", "failed on RegID insert ", err)
           }
         }
       }
@@ -164,7 +163,7 @@ func GetRegIds(skip []string) (regIds []string, err error) {
   rowIds := make([]string, 0)
   rows, err := selectRegId.Query()
   if err != nil {
-    log.Println("ERROR: failed to fetch known regIds during query ", err)
+    log.Error("db.get_regids", "failed to fetch known regIds during query ", err)
     return rowIds, err
   } else {
     for rows.Next() {

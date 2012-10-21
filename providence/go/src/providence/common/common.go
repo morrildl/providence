@@ -22,6 +22,8 @@ import (
   "log"
   "os"
   "time"
+
+  plog "providence/log"
 )
 
 type SensorType int
@@ -165,6 +167,10 @@ func init() {
   Sensors = make(map[string]Sensor)
   for k, v := range Config.SensorNames {
     Sensors[k] = Sensor{v, k, Config.SensorTypes[k]}
+  }
+
+  if Config.Debug {
+    plog.SetLogLevel(plog.LEVEL_DEBUG)
   }
 }
 

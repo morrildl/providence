@@ -19,13 +19,13 @@ import (
   "bytes"
   "encoding/json"
   "io/ioutil"
-  "log"
   "net/http"
   "strconv"
   "time"
 
   "providence/common"
   "providence/db"
+  "providence/log"
   "providence/server"
 )
 
@@ -82,7 +82,7 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
       case req := <-requestSource:
         regIds, err := db.GetRegIds(req.skip)
         if err != nil {
-          log.Println("WARNING: failed getting RegIDs during GCM send ", err)
+          log.Warn("gcm.transmitter", "failed getting RegIDs during GCM send ", err)
           continue
         }
         if len(regIds) == 0 {
@@ -92,19 +92,17 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
 
         // format up a GCM JSON message for the request
         j, ok := json.Marshal(gcmRequest{regIds, req.data})
-        if common.Config.Debug {
-          log.Print("DEBUG: GCM request as follows:")
-          log.Print(string(j))
-        }
+        log.Debug("gcm.transmitter", "DEBUG: GCM request as follows:")
+        log.Debug("gcm.transmitter", string(j))
         if ok != nil {
-          log.Print("JSON failure during encode for GCM", ok)
+          log.Status("gcm.transmitter", "JSON failure during encode for GCM", ok)
           break
         }
 
         // send the event to GCM server via HTTP POST, per spec
         httpReq, err := http.NewRequest("POST", GCM_URL, bytes.NewReader(j))
         if err != nil {
-          log.Print("Failed to create GCM HTTP request", err)
+          log.Error("gcm.transmitter", "Failed to create GCM HTTP request", err)
           break
         }
         httpReq.Header.Add("Authorization", "key=" + common.Config.OAuthToken)
@@ -112,7 +110,7 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
         client := &http.Client{}
         httpResp, err := client.Do(httpReq)
         if err != nil {
-          log.Print("GCM request failed during execution", err)
+          log.Warn("gcm.transmitter", "GCM request failed during execution", err)
           break
         }
         defer httpResp.Body.Close()
@@ -120,18 +118,16 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
         // look at the JSON response from GCM server & take any actions indicated
         body, err := ioutil.ReadAll(httpResp.Body)
         if err == nil && len(body) > 0 {
-          if common.Config.Debug {
-            log.Print("DEBUG: GCM response payload as follows:")
-            log.Print(string(body))
-          }
+          log.Debug("gcm.transmitter", "GCM response payload as follows:")
+          log.Debug("gcm.transmitter", string(body))
           var jsonResponse gcmResponse
           jsonErr := json.Unmarshal(body, &jsonResponse)
           if jsonErr != nil {
-            log.Print("JSON unmarshal failure on GCM response: ", jsonErr)
-            log.Print(string(body))
+            log.Error("gcm.transmitter", "JSON unmarshal failure on GCM response: ", jsonErr)
+            log.Error("gcm.transmitter", string(body))
             break
           }
-          log.Print("GCM response summary: success: ", jsonResponse.Success, "; failure: ", jsonResponse.Failure)
+          log.Status("gcm.transmitter", "GCM response summary: success: ", jsonResponse.Success, "; failure: ", jsonResponse.Failure)
           for i, oldId := range regIds {
             result := jsonResponse.Results[i]
 

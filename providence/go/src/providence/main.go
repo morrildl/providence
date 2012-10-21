@@ -15,14 +15,13 @@
 
 package main
 import (
-  "log"
-
   "providence/camera"
   "providence/common"
-  "providence/tty"
   "providence/db"
-  "providence/policy"
   "providence/gcm"
+  "providence/log"
+  "providence/policy"
+  "providence/tty"
 )
 
 func main() {
@@ -35,10 +34,12 @@ func main() {
     go h.Func(h.Chan, events)
   }
 
+  log.Status("main.dispatcher", "running")
+  log.Debug("main.dispatcher", "running in debug mode")
   // loop forever, sending generated events to the listeners who want to hear them
   for {
     evt := <-events
-    log.Print(evt.Which.Name + " " + evt.Description())
+    log.Status("main.dispatcher", "processing event for " + evt.Which.Name + " " + evt.Description())
     for _, h := range handlers {
       _, ok := h.Events[evt.Action]
       if ok {

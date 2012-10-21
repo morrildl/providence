@@ -17,7 +17,6 @@ package camera
 
 import (
   "io/ioutil"
-  "log"
   "net/http"
   "os"
   "path/filepath"
@@ -26,6 +25,7 @@ import (
   "time"
 
   "providence/common"
+  "providence/log"
 )
 
 /* A goroutine that runs once an hour and purges any files older than the
@@ -37,7 +37,7 @@ func startPhotoPurger() {
   }
   retention, err := time.ParseDuration(common.Config.ImageRetention)
   if err != nil {
-    log.Print("ERROR: bogus image retention duration " + common.Config.ImageRetention + ". Purger aborting.")
+    log.Error("camera.purger", "bogus image retention duration '" + common.Config.ImageRetention + "'. Aborting.")
     return
   }
   go func() {
@@ -45,31 +45,34 @@ func startPhotoPurger() {
       select {
       case <- ticker:
         cutoff := time.Now().Add(-retention)
-        log.Print("Purging files before " + cutoff.Format("Mon Jan 2 15:04:05 -0700 MST 2006"))
+        log.Status("camera.purger", "purging images before " + cutoff.Format("Mon Jan 2 15:04:05 -0700 MST 2006"))
         imageDir, err := os.Open(common.Config.ImageDirectory)
         if err != nil {
-          log.Print("WARNING: file open failed on " + common.Config.ImageDirectory)
+          log.Warn("camera.purger", "file open failed on " + common.Config.ImageDirectory)
           break
         }
         defer imageDir.Close()
         finfos, err := imageDir.Readdir(-1)
         if err != nil {
-          log.Print("WARNING: ReadDir failure on " + common.Config.ImageDirectory)
+          log.Warn("camera.purger", "WARNING: ReadDir failure on " + common.Config.ImageDirectory)
           break
         }
+        count := 0
         for _, finfo := range finfos {
           if finfo.IsDir() || !(strings.HasSuffix(finfo.Name(), ".jpg") || strings.HasSuffix(finfo.Name(), ".jpeg")) {
             continue
           }
           if cutoff.After(finfo.ModTime()) {
             err := os.Remove(filepath.Join(common.Config.ImageDirectory, finfo.Name()))
+            count += 1
             if err != nil {
-              log.Print("ERROR: failure to remove " + finfo.Name())
-            } else if common.Config.Debug {
-              log.Print("Removed " + finfo.Name())
+              log.Error("camera.purger", "failure to remove " + finfo.Name())
+            } else {
+              log.Debug("camera.purger", "removed " + finfo.Name())
             }
           }
         }
+        log.Status("camera.purger", "removed " + strconv.Itoa(count) + " images")
       }
     }
   }()
@@ -83,16 +86,16 @@ func captureImage(url string, ids []string) {
 
   res, err := http.Get(url)
   if err != nil {
-    log.Print("WARNING: failed to get image URL " + url)
-    log.Print("WARNING: reason was ", err)
+    log.Warn("camera.capture", "to get image URL " + url)
+    log.Warn("camera.capture", "reason was ", err)
     return
   }
   defer res.Body.Close()
 
   body, err := ioutil.ReadAll(res.Body)
   if err != nil {
-    log.Print("WARNING: failed reading HTTP response for " + url)
-    log.Print("WARNING: reason was ", err)
+    log.Warn("camera.capture", "failed reading HTTP response for " + url)
+    log.Warn("camera.capture", "reason was ", err)
     return
   }
 
@@ -102,17 +105,15 @@ func captureImage(url string, ids []string) {
     fname := filepath.Join(common.Config.ImageDirectory, id + "-" + strconv.FormatInt(time.Now().Unix(), 10) + ".jpg")
     file, err := os.Create(fname)
     if err != nil {
-      log.Print("WARNING: failed writing image contents for " + id)
-      log.Print("WARNING: url was " + url)
-      log.Print("WARNING: reason was ", err)
+      log.Warn("camera.capture", "failed writing image contents for " + id)
+      log.Warn("camera.capture", "url was " + url)
+      log.Warn("camera.capture", "reason was ", err)
       return
     }
     defer file.Close()
     file.Write(body)
 
-    if common.Config.Debug {
-      log.Print("wrote photo for " + id + " HTTP time:" + strconv.FormatInt(r - s, 10))
-    }
+    log.Debug("camera.capture", "wrote photo for " + id + " HTTP time:" + strconv.FormatInt(r - s, 10))
   }
 }
 
@@ -135,8 +136,8 @@ func Monitor(incoming chan common.Event, outgoing chan common.Event) {
     // grab any requested URLs, snapping everything to once per second
     case <- ticker:
       worklist := make(map[string][]string)
-      if common.Config.Debug && len(pending) > 0 {
-        log.Print("pending: ", pending)
+      if len(pending) > 0 {
+        log.Debug("camera.handler", "pending: ", pending)
       }
       old := pending
       pending = make([]configTracker, 0)
@@ -161,7 +162,7 @@ func Monitor(incoming chan common.Event, outgoing chan common.Event) {
 
     // New monitoring event from the dispatcher.
     case ev := <-incoming:
-      log.Print(ev)
+      log.Debug("camera.handler", "processing event ", ev)
       configs, ok := cameraConfigs[ev.Which.ID]
       if ok {
         for _, config := range configs {
