@@ -15,8 +15,10 @@
 package policy
 
 import (
+  "crypto/rand"
+  "fmt"
+  "io"
   "log"
-  "strconv"
   "time"
 
   "providence/common"
@@ -49,6 +51,14 @@ func parseExclusionIntervals() []timeWindow {
       Weekdays: w.DaysOfWeek})
   }
   return windows
+}
+
+/* Generates a random ID. Does not guarantee uniqueness. */
+func getId() string {
+  // TODO: probably move into db package to guarantee uniqueness
+  buf := make([]byte, 16)
+  io.ReadFull(rand.Reader, buf)
+  return fmt.Sprintf("%x", buf)
 }
 
 /* Looks for low-level events on the incoming channel and applies some
@@ -112,7 +122,7 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
           }
         }
         if !inWindow {
-          outgoing <- common.Event{Which:e.Which, Action:common.ANOMALY, When:now, Id:strconv.Itoa(int(time.Now().Unix()))}
+          outgoing <- common.Event{Which:e.Which, Action:common.ANOMALY, When:now, Id:getId()}
         }
       }
 
@@ -121,7 +131,7 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
       for which, last := range lastTrips {
         if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.lastSend {
           last.lastSend += resendFrequency
-          outgoing <- common.Event{Which:common.Sensors[which], Action:common.AJAR, When:time.Now(), Id:strconv.Itoa(int(time.Now().Unix()))}
+          outgoing <- common.Event{Which:common.Sensors[which], Action:common.AJAR, When:time.Now(), Id:getId()}
         }
       }
     }

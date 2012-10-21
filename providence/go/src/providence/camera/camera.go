@@ -26,46 +26,42 @@ import (
   "providence/common"
 )
 
-func captureImage(url string, which string, id string) {
-  s := time.Now().Unix()
+func captureImage(url string, ids []string) {
+  s := time.Now().UnixNano()
 
   res, err := http.Get(url)
   if err != nil {
-    log.Print("WARNING: failed to get image URL for " + which + "/" + id)
-    log.Print("WARNING: url was " + url)
+    log.Print("WARNING: failed to get image URL " + url)
     log.Print("WARNING: reason was ", err)
     return
   }
   defer res.Body.Close()
 
-  r := time.Now().Unix()
-
   body, err := ioutil.ReadAll(res.Body)
   if err != nil {
-    log.Print("WARNING: failed reading HTTP response for " + which + "/" + id)
-    log.Print("WARNING: url was " + url)
+    log.Print("WARNING: failed reading HTTP response for " + url)
     log.Print("WARNING: reason was ", err)
     return
   }
 
-  b := time.Now().Unix()
+  r := time.Now().UnixNano()
 
-  fname := common.Config.ImageDirectory + "/" + which + "-" + id + "-" + strconv.FormatInt(time.Now().Unix(), 10) + ".jpg"
+  for _, id := range ids {
+    fname := common.Config.ImageDirectory + "/" + id + "-" + strconv.FormatInt(time.Now().Unix(), 10) + ".jpg"
+    file, err := os.Create(fname)
+    if err != nil {
+      log.Print("WARNING: failed writing image contents for " + id)
+      log.Print("WARNING: url was " + url)
+      log.Print("WARNING: reason was ", err)
+      return
+    }
+    defer file.Close()
+    file.Write(body)
 
-  f1 := time.Now().Unix()
-
-  file, err := os.Create(fname)
-  if err != nil {
-    log.Print("WARNING: failed writing image contents for " + which + "/" + id)
-    log.Print("WARNING: url was " + url)
-    log.Print("WARNING: reason was ", err)
-    return
+    if common.Config.Debug {
+      log.Print("wrote photo for " + id + " HTTP time:" + strconv.FormatInt(r - s, 10))
+    }
   }
-  defer file.Close()
-  file.Write(body)
-
-  f2 := time.Now().Unix()
-  log.Print("capture " + id + " total:" + strconv.FormatInt(f2 - s, 10) + " disk:" + strconv.FormatInt(f2 - f1, 10) + " read:" + strconv.FormatInt(b - r, 10) + " HTTP:" + strconv.FormatInt(r - s, 10))
 }
 
 func Monitor(incoming chan common.Event, outgoing chan common.Event) {
@@ -85,18 +81,29 @@ func Monitor(incoming chan common.Event, outgoing chan common.Event) {
     select {
     // one second has passed...
     case <- ticker:
+      worklist := make(map[string][]string)
+      if common.Config.Debug && len(pending) > 0 {
+        log.Print("pending: ", pending)
+      }
       old := pending
       pending = make([]configTracker, 0)
       for _, p := range old {
         p.next -= 1
         if p.next < 1 {
-          go captureImage(p.url, p.which, p.id)
+          ids, ok := worklist[p.url]
+          if !ok {
+            ids = make([]string, 0)
+          }
+          worklist[p.url] = append(ids, p.id)
           p.count -= 1
           p.next = p.interval
         }
         if p.count >= 1 {
           pending = append(pending, p)
         }
+      }
+      for url, ids := range worklist {
+          go captureImage(url, ids)
       }
 
     // New monitoring event from the dispatcher.
