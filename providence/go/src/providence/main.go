@@ -17,6 +17,7 @@ package main
 import (
   "log"
 
+  "providence/camera"
   "providence/common"
   "providence/tty"
   "providence/db"
@@ -26,7 +27,7 @@ import (
 
 func main() {
   /* Stores handler function and its state and registration info. */
-  handlers := []common.Handler{tty.Handler, db.Handler, policy.Handler, gcm.Handler}
+  handlers := []common.Handler{tty.Handler, db.Handler, policy.Handler, gcm.Handler, camera.Handler}
 
   // start up the handlers as goroutines
   events := make(chan common.Event, 10)

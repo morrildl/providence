@@ -56,6 +56,7 @@ type Event struct {
   Which Sensor
   Action EventCode
   When time.Time
+  Id string
 }
 
 /* Returns a sensor-type-specific human string for an event code.  */
@@ -98,6 +99,12 @@ var Config struct {
   SensorNames map[string]string
   SensorTypes map[string]SensorType
   AjarThreshold time.Duration
+  ImageDirectory string
+  CameraConfig map[string][]struct {
+    Url string
+    Interval int
+    Count int
+  }
   ExclusionIntervals []struct {
     Start string
     Duration string

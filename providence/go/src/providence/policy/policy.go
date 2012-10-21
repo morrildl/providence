@@ -16,6 +16,7 @@ package policy
 
 import (
   "log"
+  "strconv"
   "time"
 
   "providence/common"
@@ -111,7 +112,7 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
           }
         }
         if !inWindow {
-          outgoing <- common.Event{e.Which, common.ANOMALY, now}
+          outgoing <- common.Event{Which:e.Which, Action:common.ANOMALY, When:now, Id:strconv.Itoa(int(time.Now().Unix()))}
         }
       }
 
@@ -120,7 +121,7 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
       for which, last := range lastTrips {
         if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.lastSend {
           last.lastSend += resendFrequency
-          outgoing <- common.Event{common.Sensors[which], common.AJAR, time.Now()}
+          outgoing <- common.Event{Which:common.Sensors[which], Action:common.AJAR, When:time.Now(), Id:strconv.Itoa(int(time.Now().Unix()))}
         }
       }
     }

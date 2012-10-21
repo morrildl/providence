@@ -50,7 +50,7 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
   for {
     err := dec.Decode(&e)
     if err == nil {
-      outgoing <- common.Event{common.Sensors[e.Which], common.EventCode(e.Action), time.Now()}
+      outgoing <- common.Event{Which:common.Sensors[e.Which], Action:common.EventCode(e.Action), When:time.Now()}
     } else {
       log.Println("WARNING: JSON parse error on tty")
     }
@@ -70,7 +70,7 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
       } else {
         which := req.Form["w"][0]
         action, _ := strconv.Atoi(req.Form["a"][0])
-        c <- common.Event{common.Sensors[which], common.EventCode(action), time.Now()}
+        c <- common.Event{Which:common.Sensors[which], Action:common.EventCode(action), When:time.Now()}
       }
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, "OK")
