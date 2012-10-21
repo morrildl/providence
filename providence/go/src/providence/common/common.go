@@ -99,6 +99,7 @@ var Config struct {
   SensorNames map[string]string
   SensorTypes map[string]SensorType
   AjarThreshold time.Duration
+  ImageRetention string
   ImageDirectory string
   CameraConfig map[string][]struct {
     Url string

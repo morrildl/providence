@@ -20,12 +20,61 @@ import (
   "log"
   "net/http"
   "os"
+  "path/filepath"
   "strconv"
+  "strings"
   "time"
 
   "providence/common"
 )
 
+/* A goroutine that runs once an hour and purges any files older than the
+ * specified retention period. */
+func startPhotoPurger() {
+  ticker := time.Tick(1 * time.Minute)
+  retention, err := time.ParseDuration(common.Config.ImageRetention)
+  if err != nil {
+    log.Print("ERROR: bogus image retention duration " + common.Config.ImageRetention + ". Purger aborting.")
+    return
+  }
+  go func() {
+    for {
+      select {
+      case <- ticker:
+        cutoff := time.Now().Add(-retention)
+        log.Print("Purging files before " + cutoff.Format("Mon Jan 2 15:04:05 -0700 MST 2006"))
+        imageDir, err := os.Open(common.Config.ImageDirectory)
+        if err != nil {
+          log.Print("WARNING: file open failed on " + common.Config.ImageDirectory)
+          break
+        }
+        defer imageDir.Close()
+        finfos, err := imageDir.Readdir(-1)
+        if err != nil {
+          log.Print("WARNING: ReadDir failure on " + common.Config.ImageDirectory)
+          break
+        }
+        for _, finfo := range finfos {
+          if finfo.IsDir() || !(strings.HasSuffix(finfo.Name(), ".jpg") || strings.HasSuffix(finfo.Name(), ".jpeg")) {
+            continue
+          }
+          if cutoff.After(finfo.ModTime()) {
+            err := os.Remove(filepath.Join(common.Config.ImageDirectory, finfo.Name()))
+            if err != nil {
+              log.Print("ERROR: failure to remove " + finfo.Name())
+            } else if common.Config.Debug {
+              log.Print("Removed " + finfo.Name())
+            }
+          }
+        }
+      }
+    }
+  }()
+}
+
+/* Fetches the indicated URL and saves the response body on behalf of the
+ * indicated IDs. Does not actually verify that the response is JPEG data, but
+ * always names the files that way. */
 func captureImage(url string, ids []string) {
   s := time.Now().UnixNano()
 
@@ -47,7 +96,7 @@ func captureImage(url string, ids []string) {
   r := time.Now().UnixNano()
 
   for _, id := range ids {
-    fname := common.Config.ImageDirectory + "/" + id + "-" + strconv.FormatInt(time.Now().Unix(), 10) + ".jpg"
+    fname := filepath.Join(common.Config.ImageDirectory, id + "-" + strconv.FormatInt(time.Now().Unix(), 10) + ".jpg")
     file, err := os.Create(fname)
     if err != nil {
       log.Print("WARNING: failed writing image contents for " + id)
@@ -64,6 +113,7 @@ func captureImage(url string, ids []string) {
   }
 }
 
+/* Handler for main.go. */
 func Monitor(incoming chan common.Event, outgoing chan common.Event) {
   type configTracker struct {
     which string
@@ -79,7 +129,7 @@ func Monitor(incoming chan common.Event, outgoing chan common.Event) {
   // check each raw event and synthesize higher level events as appropriate
   for {
     select {
-    // one second has passed...
+    // grab any requested URLs, snapping everything to once per second
     case <- ticker:
       worklist := make(map[string][]string)
       if common.Config.Debug && len(pending) > 0 {
@@ -127,6 +177,9 @@ type cameraConfig struct {
 var cameraConfigs map[string][]cameraConfig
 
 func init() {
+  // pre-parse the camera configuration structure; basically just says how
+  // many photos to grab from what URL at what interval, for any event from a
+  // given sensor
   cameraConfigs = make(map[string][]cameraConfig)
   for which, configs := range common.Config.CameraConfig {
     cameraConfigs[which] = make([]cameraConfig, 0)
@@ -134,6 +187,8 @@ func init() {
       cameraConfigs[which] = append(cameraConfigs[which], config)
     }
   }
+
+  startPhotoPurger()
 }
 
 var Handler = common.Handler{Monitor, make(chan common.Event, 10), map[common.EventCode]int{common.AJAR: 1, common.ANOMALY: 1}}
