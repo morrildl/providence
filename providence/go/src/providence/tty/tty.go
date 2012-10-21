@@ -83,3 +83,15 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
     outgoing <- b
   }
 }
+
+var Handler common.Handler
+
+func init() {
+  var f func(chan common.Event, chan common.Event)
+  if common.Config.MockTty {
+    f = MockReader
+  } else {
+    f = Reader
+  }
+  Handler = common.Handler{f, make(chan common.Event, 10), map[common.EventCode]int{}} // no registrations
+}

@@ -158,3 +158,9 @@ func init() {
     Sensors[k] = Sensor{v, k, Config.SensorTypes[k]}
   }
 }
+
+type Handler struct {
+  Func func(chan Event, chan Event)
+  Chan chan Event
+  Events map[EventCode]int
+}

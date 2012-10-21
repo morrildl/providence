@@ -191,3 +191,5 @@ func Escalator(incoming chan common.Event, outgoing chan common.Event) {
     }
   }
 }
+
+var Handler = common.Handler{Escalator, make(chan common.Event, 10), map[common.EventCode]int{common.AJAR: 1, common.ANOMALY: 1}}

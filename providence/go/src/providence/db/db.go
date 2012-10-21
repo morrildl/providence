@@ -184,3 +184,11 @@ func GetRegIds(skip []string) (regIds []string, err error) {
   }
   return rowIds, nil
 }
+
+var Handler = common.Handler{
+  Recorder,
+  make(chan common.Event, 10),
+  map[common.EventCode]int{
+    common.TRIP: 1, common.RESET: 1, common.AJAR: 1, common.ANOMALY: 1,
+  },
+}

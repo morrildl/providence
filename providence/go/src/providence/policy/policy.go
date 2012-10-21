@@ -126,3 +126,5 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
     }
   }
 }
+
+var Handler = common.Handler{SensorMonitor, make(chan common.Event, 10), map[common.EventCode]int{common.TRIP: 1, common.RESET: 1}}
