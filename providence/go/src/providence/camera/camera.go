@@ -31,7 +31,10 @@ import (
 /* A goroutine that runs once an hour and purges any files older than the
  * specified retention period. */
 func startPhotoPurger() {
-  ticker := time.Tick(1 * time.Minute)
+  ticker := time.Tick(1 * time.Hour)
+  if common.Config.Debug {
+    ticker = time.Tick(1 * time.Minute)
+  }
   retention, err := time.ParseDuration(common.Config.ImageRetention)
   if err != nil {
     log.Print("ERROR: bogus image retention duration " + common.Config.ImageRetention + ". Purger aborting.")
