@@ -118,20 +118,8 @@ var Config struct {
 }
 
 func init() {
-  var flagPort int
-  var flagTty string
-  var flagDatabase string
   var configFile string
-  var mockTty bool
-  var debug bool
-  var oAuthToken string
   flag.StringVar(&configFile, "config", "./config.json", "fully qualified path to the JSON config file")
-  flag.IntVar(&flagPort, "port", 4280, "port of the HTTP server")
-  flag.StringVar(&flagTty, "tty", "/dev/ttyUSB0", "USB TTY file connected to the Arduino")
-  flag.StringVar(&flagDatabase, "database", "./db.sqlite3", "fully qualified path to the sqlite3 database file")
-  flag.BoolVar(&mockTty, "mocktty", false, "use an HTTP server on :4281 instead of a TTY")
-  flag.BoolVar(&debug, "debug", false, "use an HTTP server on :4281 instead of a TTY")
-  flag.StringVar(&oAuthToken, "oauth", "", "specify the OAuth token to send to GCM")
   flag.Parse()
 
   file, err := os.Open(configFile)
@@ -145,24 +133,6 @@ func init() {
   err = json.Unmarshal([]byte(jsonText), &Config)
   if err != nil {
     log.Fatal("loading config failed on unmarshal ", err)
-  }
-  if flagTty != "" {
-    Config.Tty = flagTty
-  }
-  if flagPort > 0 {
-    Config.HttpPort = flagPort
-  }
-  if flagDatabase != "" {
-    Config.DatabasePath = flagDatabase
-  }
-  if mockTty {
-    Config.MockTty = mockTty
-  }
-  if debug {
-    Config.Debug = debug
-  }
-  if oAuthToken != "" {
-    Config.OAuthToken = oAuthToken
   }
 
   Sensors = make(map[string]Sensor)
