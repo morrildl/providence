@@ -18,6 +18,7 @@ package log
 import (
   "fmt"
   "log"
+  "os"
 )
 
 type LogLevel int
@@ -36,6 +37,15 @@ func SetLogLevel(newLevel LogLevel) {
     return
   }
   currentLevel = newLevel
+}
+
+func SetLogFile(fileName string) {
+  if f, err := os.OpenFile(fileName, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0660); err == nil {
+    fmt.Println("Directing log to " + fileName + ".")
+    log.SetOutput(f)
+  } else {
+    Warn("Logger", "failed to open log file ", fileName)
+  }
 }
 
 var levelMap map[LogLevel]string = map[LogLevel]string{

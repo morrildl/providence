@@ -8,3 +8,5 @@ src/github.com
 config.json
 main
 photos
+monitor.log
+nohup.out

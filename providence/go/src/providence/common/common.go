@@ -97,6 +97,7 @@ var Config struct {
   DatabasePath string
   MockTty bool
   Debug bool
+  LogFile string
   OAuthToken string
   SensorNames map[string]string
   SensorTypes map[string]SensorType
@@ -171,6 +172,9 @@ func init() {
 
   if Config.Debug {
     plog.SetLogLevel(plog.LEVEL_DEBUG)
+  }
+  if Config.LogFile != "" && !Config.Debug {
+    plog.SetLogFile(Config.LogFile)
   }
 }
 
