@@ -15,7 +15,10 @@
 package dude.morrildl.providence;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -24,6 +27,7 @@ import android.app.Activity;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 import android.content.Context;
+import android.content.res.Resources.NotFoundException;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
@@ -109,7 +113,6 @@ public class PanopticonActivity extends Activity /*
 	}
 
 	static class ServerRegisterTask extends AsyncTask<String, Integer, String> {
-		private static final String SERVER_URL = "http://providence:4280/regid";
 		private Context context;
 
 		@SuppressWarnings("unused")
@@ -125,9 +128,21 @@ public class PanopticonActivity extends Activity /*
 			String regId = regIds[0];
 			URL url;
 			try {
-				url = new URL(SERVER_URL);
+				InputStream is = context.getResources().openRawResource(
+						R.raw.home_url);
+				String s = new java.util.Scanner(is).useDelimiter("\\A").next()
+						+ "regid";
+				url = new URL(s);
 			} catch (MalformedURLException e) {
 				Log.e("doInBackground", "URL error", e);
+				return null;
+			} catch (NotFoundException e) {
+				Log.e("doInBackground", "URL error", e);
+				e.printStackTrace();
+				return null;
+			} catch (IOException e) {
+				Log.e("doInBackground", "URL error", e);
+				e.printStackTrace();
 				return null;
 			}
 			HttpURLConnection cxn = null;
@@ -158,7 +173,7 @@ public class PanopticonActivity extends Activity /*
 		@Override
 		protected void onPostExecute(String result) {
 			Log.e("onPostExecute result", "'" + result + "'");
-			if ("OK".equals(result))
+			if (result != null && "OK".equals(result.trim()))
 				GCMRegistrar.setRegisteredOnServer(context, true);
 		}
 	}
