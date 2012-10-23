@@ -36,6 +36,7 @@ type ShareUrlRequest struct {
 
 type payload struct {
   EventCode string
+  EventId string
   EventName string
   WhichId string
   WhichName string
@@ -180,7 +181,7 @@ func Escalator(incoming chan common.Event, outgoing chan common.Event) {
     case ev := <-incoming:
       gcmRequestSink <- request{
         payload{ // GCM only supports strings so we can't be very typesafe here
-          strconv.Itoa(int(ev.Action)), ev.Description(), ev.Which.ID, ev.Which.Name,
+          strconv.Itoa(int(ev.Action)), ev.Id, ev.Description(), ev.Which.ID, ev.Which.Name,
           strconv.Itoa(int(ev.Which.Kind)), ev.Which.KindName(), ev.When, ""},
         []string{},
       }
