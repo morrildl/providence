@@ -181,19 +181,24 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       fnames := strings.Split(req.URL.Path, "/")
       if len(fnames) != 3 {
         // means there is one or more extra chunks in there, which could be an attack; do nothing
+        log.Warn("server.photo", "nonconformant URL " + req.URL.Path + " from " + req.RemoteAddr)
         writer.WriteHeader(http.StatusNotFound)
+        io.WriteString(writer, "404")
         return
       }
       fname := fnames[len(fnames) - 1]
       fpath := filepath.Join(common.Config.ImageDirectory, fname)
       f, err := os.Open(fpath)
       if err != nil {
+        log.Debug("server.photo", "404 URL " + req.URL.Path + " from " + req.RemoteAddr)
         writer.WriteHeader(http.StatusNotFound)
+        io.WriteString(writer, "404")
         return
       }
       defer f.Close()
       bytes, err := ioutil.ReadAll(f)
       if err != nil {
+        log.Error("server.photo", "failed reading file for URL " + req.URL.Path + " from " + req.RemoteAddr)
         writer.WriteHeader(http.StatusInternalServerError)
         io.WriteString(writer, "FAIL")
         return
