@@ -1,10 +1,11 @@
 - add photos to app and polish up UI
 - Finish VBOF
-- add an exclusion window override -- i.e. "armed mode" (requires new URL handler)
 - HTTPS
 - Authentication
   - Need to add OAuth2 (or similar) checks when adding RegIds
   - Need to add OAuth2 (or similar) checks when requesting /photos or /photo/*
+- add database create hooks (oops)
+- add an exclusion window override -- i.e. "armed mode" (requires new URL handler)
 - smarter notification behaviors for ajar & anomalies
   - policies?
   - coalesce GCM notifications?

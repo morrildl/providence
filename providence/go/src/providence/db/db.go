@@ -45,7 +45,7 @@ func init() {
   // Initialize events table prepared statements
   insertEvent, err = db.Prepare("insert into events (name, value) values (?, ?)")
   if err != nil {
-    log.Error("db.package_init", "ERROR: recorder failed to prepare insert statement ", err)
+    log.Error("db.package_init", "recorder failed to prepare insert statement ", err)
   }
 
   // Initialize reg_ids table prepared statements
