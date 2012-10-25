@@ -1,6 +1,5 @@
 - add photos to app and polish up UI
 - Finish VBOF
-- HTTPS
 - Authentication
   - Need to add OAuth2 (or similar) checks when adding RegIds
   - Need to add OAuth2 (or similar) checks when requesting /photos or /photo/*
@@ -12,6 +11,7 @@
 - add a handler for firing the physical alarm (requires ability to send to Arduino)
 
 
+- DONE - HTTPS
 - DONE - daemonize process
 - DONE - review logging
 - DONE - add web cam support (capture, rules, purge, list, and access)

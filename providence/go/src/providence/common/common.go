@@ -93,7 +93,9 @@ var Sensors map[string]Sensor
 /* Global config structure. */
 var Config struct {
   Tty string
-  HttpPort int
+  ServerPort int
+  HttpsCertFile string
+  HttpsKeyFile string
   DatabasePath string
   MockTty bool
   Debug bool

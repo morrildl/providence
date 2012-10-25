@@ -76,7 +76,7 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
       io.WriteString(writer, "OK")
     })
 
-    log.Error("tty.mock", "unexpected server shutdown", http.ListenAndServe(":" + strconv.Itoa(common.Config.HttpPort + 1), nil))
+    log.Error("tty.mock", "unexpected server shutdown", http.ListenAndServe(":" + strconv.Itoa(common.Config.ServerPort + 1), nil))
   }(c)
   for {
     b := <-c

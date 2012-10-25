@@ -211,9 +211,16 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     })
 
     // listen on the configured port
-    port := strconv.Itoa(common.Config.HttpPort)
-    log.Status("server.http", "starting on port " + port)
-    log.Error("server.http", "shut down unexpectedly", http.ListenAndServe(":" + port, nil))
+    port := strconv.Itoa(common.Config.ServerPort)
+    haveCert := common.Config.HttpsCertFile != "" && common.Config.HttpsKeyFile != ""
+    if haveCert {
+      log.Status("server.http", "starting HTTPS on port " + port)
+      log.Error("server.http", "shut down unexpectedly",
+      http.ListenAndServeTLS(":" + port, common.Config.HttpsCertFile, common.Config.HttpsKeyFile, nil))
+    } else {
+      log.Status("server.http", "starting HTTP on port " + port)
+      log.Error("server.http", "shut down unexpectedly", http.ListenAndServe(":" + port, nil))
+    }
   }()
   return regIdRequestChan, gcmSendUrlChan
 }
