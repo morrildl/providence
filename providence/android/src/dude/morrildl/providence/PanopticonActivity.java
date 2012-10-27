@@ -143,7 +143,7 @@ public class PanopticonActivity extends Activity /*
 						+ "regid";
 				url = new URL(s);
 				KeyStore ks = KeyStore.getInstance("BKS");
-				ks.load(context.getResources().openRawResource(R.raw.ks),
+				ks.load(context.getResources().openRawResource(R.raw.keystore),
 						"boogaflex".toCharArray());
 				TrustManagerFactory tmf = TrustManagerFactory
 						.getInstance(TrustManagerFactory.getDefaultAlgorithm());
