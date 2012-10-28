@@ -19,7 +19,6 @@ import (
   "io"
   "io/ioutil"
   "net/http"
-  "net/url"
   "os"
   "path/filepath"
   "strconv"
@@ -28,6 +27,7 @@ import (
   "providence/common"
   "providence/db"
   "providence/log"
+  "providence/policy"
 )
 
 type ShareUrlRequest struct {
@@ -68,34 +68,66 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     })
 
     // Send a VBOF URL to subscribers
-    http.HandleFunc("/vbof", func(writer http.ResponseWriter, req *http.Request) {
+    http.HandleFunc("/vbofupload", func(writer http.ResponseWriter, req *http.Request) {
+      log.Debug("server.vbof", "incoming request from " + req.RemoteAddr)
       body, err := ioutil.ReadAll(req.Body)
-      if err != nil {
-        log.Warn("server.vbof", "failure reading body in /vbof", err)
-      } else {
-        bodyStr := string(body)
-        if (bodyStr == "") {
-          log.Warn("server.vbof", "empty body in /vbof")
-        } else {
-          bodyStr, _ = url.QueryUnescape(bodyStr)
-          lines := strings.Split(bodyStr, "\n")
-          if len(lines) < 1 || len(lines) > 2 {
-            log.Warn("server.vbof", "unexpected number of lines in /vbof", lines)
-          } else {
-            uri := lines[0]
-            _, err := url.Parse(uri)
-            if err != nil {
-              log.Warn("server.vbof", "input does not look like a URL", uri)
-            } else {
-              skip := make([]string, 0)
-              if len(lines) > 1 {
-                skip = append(skip, lines[1])
-              }
-              gcmSendUrlChan <- ShareUrlRequest{lines[0], skip}
-            }
-          }
-        }
+      if err != nil || len(body) < 1 {
+        log.Warn("server.vbof", "failure reading body in /vbofupload", err)
+        writer.WriteHeader(http.StatusBadRequest)
+        io.WriteString(writer, "FAIL")
+        return
       }
+      log.Debug("server.vbof", req.RemoteAddr + " 1")
+
+      mimeType := req.Header.Get("Content-Type")
+      if mimeType == "" {
+        log.Warn("server.vbof", "no content-type in /vbofupload", err)
+        writer.WriteHeader(http.StatusBadRequest)
+        io.WriteString(writer, "FAIL")
+        return
+      }
+      log.Debug("server.vbof", req.RemoteAddr + " " + mimeType)
+      extension := map[string]string{
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/gif": "gif",
+        "image/tiff": "tif",
+        "image/*": "jpg", // FAIL
+      }[mimeType]
+      log.Debug("server.vbof", req.RemoteAddr + " " + extension)
+
+      title := req.Form.Get("subject") // don't care if "" as text is optional
+      log.Debug("server.vbof", req.RemoteAddr + " " + title)
+
+      vbof_id := policy.GetId()
+      log.Debug("server.vbof", req.RemoteAddr + " " + vbof_id)
+
+      err = db.StoreVbofInfo(vbof_id, mimeType, title)
+      if err != nil {
+        log.Warn("server.vbof", "no failed storing metadata", err)
+        writer.WriteHeader(http.StatusInternalServerError)
+        io.WriteString(writer, "FAIL")
+        return
+      }
+
+      fname := filepath.Join(common.Config.VbofImageDirectory, vbof_id + "." + extension)
+      log.Debug("server.vbof", req.RemoteAddr + " " + fname)
+      file, err := os.Create(fname)
+      if err != nil {
+        log.Warn("camera.capture", "failed writing image contents for new vbof ", err)
+        writer.WriteHeader(http.StatusInternalServerError)
+        io.WriteString(writer, "FAIL")
+        return
+      }
+      defer file.Close()
+      file.Write(body)
+      log.Debug("server.vbof", req.RemoteAddr + " hmph")
+
+      url := common.Config.VbofImageUrlRoot + vbof_id + "." + extension
+      log.Debug("server.vbof", req.RemoteAddr + " " + url)
+      gcmSendUrlChan <- ShareUrlRequest{url, make([]string, 0)}
+      log.Debug("server.vbof", req.RemoteAddr + " booga")
+
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, "OK\n")
     })
@@ -176,6 +208,59 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       io.WriteString(writer, string(bodyStr))
     })
 
+    serve_image := func(path string, message string, mimeType string, writer http.ResponseWriter, req *http.Request) {
+      f, err := os.Open(path)
+      if err != nil {
+        log.Debug("server.photo", "404 URL " + req.URL.Path + " from " + req.RemoteAddr)
+        writer.WriteHeader(http.StatusNotFound)
+        io.WriteString(writer, "404")
+        return
+      }
+      defer f.Close()
+
+      bytes, err := ioutil.ReadAll(f)
+      if err != nil {
+        log.Error("server.photo", "failed reading file for URL " + req.URL.Path + " from " + req.RemoteAddr)
+        writer.WriteHeader(http.StatusInternalServerError)
+        io.WriteString(writer, "FAIL")
+        return
+      }
+
+      log.Status("server.photo", "serving " + path + " to " + req.RemoteAddr)
+
+      writer.Header().Add("Content-Type", mimeType)
+      if message != "" {
+        writer.Header().Add("X-Image-Title", message)
+      }
+      writer.Header().Add("Content-Length", strconv.Itoa(len(bytes)))
+      io.WriteString(writer, string(bytes))
+    }
+
+    http.HandleFunc("/vbof/", func(writer http.ResponseWriter, req *http.Request) {
+      fnames := strings.Split(req.URL.Path, "/")
+      if len(fnames) != 3 {
+        // means there is one or more extra chunks in there, which could be an attack; do nothing
+        log.Warn("server.vbof", "nonconformant URL " + req.URL.Path + " from " + req.RemoteAddr)
+        writer.WriteHeader(http.StatusNotFound)
+        io.WriteString(writer, "404")
+        return
+      }
+      fname := fnames[len(fnames) - 1]
+      fpath := filepath.Join(common.Config.VbofImageDirectory, fname)
+
+      vbof_id := strings.Split(fname, ".")[0]
+      mimeType, title, err := db.GetVbofInfo(vbof_id)
+      if err != nil || mimeType == "" {
+        log.Debug("server.vbof", mimeType + " " + title, err)
+        log.Warn("server.vbof", "request for nonexistent VBOF " + vbof_id, err)
+        writer.WriteHeader(http.StatusNotFound)
+        io.WriteString(writer, "404")
+        return
+      }
+
+      serve_image(fpath, title, mimeType, writer, req)
+    })
+
     // fetch and return an indicated photo
     http.HandleFunc("/photo/", func(writer http.ResponseWriter, req *http.Request) {
       fnames := strings.Split(req.URL.Path, "/")
@@ -188,26 +273,8 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       }
       fname := fnames[len(fnames) - 1]
       fpath := filepath.Join(common.Config.ImageDirectory, fname)
-      f, err := os.Open(fpath)
-      if err != nil {
-        log.Debug("server.photo", "404 URL " + req.URL.Path + " from " + req.RemoteAddr)
-        writer.WriteHeader(http.StatusNotFound)
-        io.WriteString(writer, "404")
-        return
-      }
-      defer f.Close()
-      bytes, err := ioutil.ReadAll(f)
-      if err != nil {
-        log.Error("server.photo", "failed reading file for URL " + req.URL.Path + " from " + req.RemoteAddr)
-        writer.WriteHeader(http.StatusInternalServerError)
-        io.WriteString(writer, "FAIL")
-        return
-      }
-      // TODO: add authentication
-      log.Status("server.photo", "serving " + fname + " to " + req.RemoteAddr)
-      writer.Header().Add("Content-Type", "image/jpeg")
-      writer.Header().Add("Content-Length", strconv.Itoa(len(bytes)))
-      io.WriteString(writer, string(bytes))
+
+      serve_image(fpath, "", "image/jpeg", writer, req)
     })
 
     // listen on the configured port
