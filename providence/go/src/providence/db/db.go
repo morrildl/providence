@@ -179,6 +179,7 @@ func GetRegIds(skip []string) (regIds []string, err error) {
     log.Error("db.get_regids", "failed to fetch known regIds during query ", err)
     return rowIds, err
   } else {
+    defer rows.Close()
     for rows.Next() {
       var s string
       rows.Scan(&s)
@@ -204,6 +205,7 @@ func GetVbofInfo(vbof string) (mimeType string, title string, err error){
     log.Error("db.get_vbof", "failed to fetch metadata ", err)
     return "", "", err
   }
+  defer rows.Close()
 
   if rows.Next() {
     rows.Scan(&mimeType, &title)

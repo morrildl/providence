@@ -20,6 +20,9 @@ import dude.morrildl.providence.util.Network;
 
 public class VbofActivity extends Activity {
 
+	/**
+	 * Handles the actual act of sending a VBOF share.
+	 */
 	class VbofSendTask extends AsyncTask<Intent, Integer, Boolean> {
 		public VbofSendTask() {
 		}
@@ -30,11 +33,14 @@ public class VbofActivity extends Activity {
 				Log.w("VbofSendTask.doInBackground", "sent no-op intent");
 				return true;
 			}
+			
+			// Pull out the info from the Intent we are to share
 			Intent intent = params[0];
 			String mimeType = intent.resolveType(getContentResolver());
-
 			String subject = intent.getStringExtra(Intent.EXTRA_SUBJECT);
 			Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+
+			// load the bytes pointed to by the URI
 			String scheme = uri.getScheme();
 			byte[] bytes = null;
 			if (scheme == "file") {
@@ -47,7 +53,6 @@ public class VbofActivity extends Activity {
 				Log.w("VbofSendTask.doInBackground",
 						"don't know how to handle scheme " + scheme);
 			}
-
 			if (bytes == null || bytes.length == 0) {
 				Log.w("VbofSendTask.doInBackground", "got empty or null bytes");
 				return false;
@@ -56,6 +61,7 @@ public class VbofActivity extends Activity {
 			URL url;
 			HttpsURLConnection cxn = null;
 			try {
+				// Connect to server and upload the image data & metadata
 				url = networkUtil.urlForResource(R.raw.vbof_send_url, subject);
 				cxn = (HttpsURLConnection) url.openConnection();
 				cxn.setSSLSocketFactory(networkUtil.getSslSocketFactory());
