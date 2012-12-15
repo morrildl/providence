@@ -1,0 +1,12 @@
+[Unit]
+Description=Providence GPIO configuration
+After=gpiosetup.service
+
+[Service]
+User=morrildl
+Group=morrildl
+ExecStart=/home/morrildl/providence/go/main -config=/home/morrildl/var/config.json
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

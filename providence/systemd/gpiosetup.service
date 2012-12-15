@@ -1,0 +1,10 @@
+[Unit]
+Description=Providence GPIO configuration
+After=openntpd.service
+
+[Service]
+ExecStart=/home/morrildl/providence/bin/gpiosetup.sh
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target

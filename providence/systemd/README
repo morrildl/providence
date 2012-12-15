@@ -1,0 +1,12 @@
+These are systemd configuration files, as used on Arch, Fedora, and others.
+There are two config files here: one sets up the GPIO pin control files (in
+/sys/class/gpio) used by the monitor server, and the other starts up
+providence itself.
+
+To install:
+$ cp *.service /etc/systemd/system
+# edit the files to tweak installation paths of the compiled main.go
+  executable and the gpiosetup.sh script
+$ sudo systemctl daemon-reload
+$ sudo systemctl enable gpiosetup.service
+$ sudo systemctl enable providence.service
