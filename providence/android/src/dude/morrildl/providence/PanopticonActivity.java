@@ -15,20 +15,12 @@
 package dude.morrildl.providence;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
 import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 
 import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManagerFactory;
 
 import android.app.Activity;
 import android.app.FragmentManager;
@@ -48,6 +40,7 @@ import com.google.android.gcm.GCMRegistrar;
 import dude.morrildl.providence.gcm.GCMIntentService;
 import dude.morrildl.providence.panopticon.EventDetailsFragment;
 import dude.morrildl.providence.panopticon.EventHistoryFragment;
+import dude.morrildl.providence.util.Network;
 
 public class PanopticonActivity extends Activity /*
 												 * implements
@@ -55,7 +48,8 @@ public class PanopticonActivity extends Activity /*
 												 */{
 	private EventDetailsFragment eventDetailsFragment = null;
 	private EventHistoryFragment eventHistoryFragment = null;
-	private static final String GAUTH_CLIENT_ID = "25235963451.apps.googleusercontent.com";
+	private Network networkUtil;
+	//private static final String GAUTH_CLIENT_ID = "25235963451.apps.googleusercontent.com";
 
 	/** Called when the activity is first created. */
 	@Override
@@ -76,6 +70,13 @@ public class PanopticonActivity extends Activity /*
 		String regId = GCMRegistrar.getRegistrationId(this);
 		if (regId == null || "".equals(regId)) {
 			GCMRegistrar.register(this, GCMIntentService.SENDER_ID);
+		}
+		
+		try {
+			networkUtil = Network.getInstance(this);
+		} catch (KeyStoreException e) {
+			Log.e("PanopticonActivity.onCreate", "FATAL: exception loading the network utility");
+			throw new RuntimeException("exception loading the network utility", e);
 		}
 	}
 
@@ -120,7 +121,7 @@ public class PanopticonActivity extends Activity /*
 		}
 	}
 
-	static class ServerRegisterTask extends AsyncTask<String, Integer, String> {
+	class ServerRegisterTask extends AsyncTask<String, Integer, String> {
 		private Context context;
 
 		@SuppressWarnings("unused")
@@ -137,22 +138,9 @@ public class PanopticonActivity extends Activity /*
 			URL url;
 			HttpsURLConnection cxn = null;
 			try {
-				InputStream is = context.getResources().openRawResource(
-						R.raw.home_url);
-				String s = new java.util.Scanner(is).useDelimiter("\\A").next().trim()
-						+ "regid";
-				url = new URL(s);
-				KeyStore ks = KeyStore.getInstance("BKS");
-				ks.load(context.getResources().openRawResource(R.raw.ks),
-						"boogaflex".toCharArray());
-				TrustManagerFactory tmf = TrustManagerFactory
-						.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-				tmf.init(ks);
-				SSLContext ctx = SSLContext.getInstance("TLS");
-				ctx.init(null, tmf.getTrustManagers(), null);
-				SSLSocketFactory sslFactory = ctx.getSocketFactory();
+				url = networkUtil.urlForResource(R.raw.regid_url, null);
 				cxn = (HttpsURLConnection) url.openConnection();
-				cxn.setSSLSocketFactory(sslFactory);
+				cxn.setSSLSocketFactory(networkUtil.getSslSocketFactory());
 				cxn.setDoInput(true);
 				cxn.setRequestMethod("POST");
 				OutputStream os = cxn.getOutputStream();
@@ -166,14 +154,6 @@ public class PanopticonActivity extends Activity /*
 				Log.e("doInBackground", "URL error", e);
 			} catch (IOException e) {
 				Log.e("doInBackground", "transmission error", e);
-			} catch (KeyStoreException e) {
-				Log.e("doInBackground", "broken keystore", e);
-			} catch (NoSuchAlgorithmException e) {
-				Log.e("doInBackground", "trolololwut nosuchalgorithm", e);
-			} catch (KeyManagementException e) {
-				Log.e("doInBackground", "seriously? For real?", e);
-			} catch (CertificateException e) {
-				Log.e("doInBackground", "I'm lolling here.", e);
 			} finally {
 				if (cxn != null)
 					cxn.disconnect();

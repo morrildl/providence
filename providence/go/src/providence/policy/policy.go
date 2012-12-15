@@ -54,7 +54,7 @@ func parseExclusionIntervals() []timeWindow {
 }
 
 /* Generates a random ID. Does not guarantee uniqueness. */
-func getId() string {
+func GetId() string {
   // TODO: probably move into db package to guarantee uniqueness
   buf := make([]byte, 16)
   io.ReadFull(rand.Reader, buf)
@@ -122,7 +122,7 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
           }
         }
         if !inWindow {
-          outgoing <- common.Event{Which:e.Which, Action:common.ANOMALY, When:now, Id:getId()}
+          outgoing <- common.Event{Which:e.Which, Action:common.ANOMALY, When:now, Id:GetId()}
         }
       }
 
@@ -131,7 +131,7 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
       for which, last := range lastTrips {
         if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.lastSend {
           last.lastSend += resendFrequency
-          outgoing <- common.Event{Which:common.Sensors[which], Action:common.AJAR, When:time.Now(), Id:getId()}
+          outgoing <- common.Event{Which:common.Sensors[which], Action:common.AJAR, When:time.Now(), Id:GetId()}
         }
       }
     }

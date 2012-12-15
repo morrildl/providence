@@ -107,6 +107,8 @@ var Config struct {
   ImageRetention string
   ImageDirectory string
   ImageUrlRoot string
+  VbofImageDirectory string
+  VbofImageUrlRoot string
   CameraConfig map[string][]struct {
     Url string
     Interval int

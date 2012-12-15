@@ -17,6 +17,7 @@ package db
 
 import (
   "database/sql"
+  "errors"
 
   "providence/common"
   "providence/log"
@@ -31,6 +32,8 @@ var (
   updateRegId *sql.Stmt
   deleteRegId *sql.Stmt
   selectRegId *sql.Stmt
+  insertVbof *sql.Stmt
+  selectVbofMetadata *sql.Stmt
 )
 
 func init() {
@@ -64,6 +67,16 @@ func init() {
   selectRegId, err = db.Prepare("select reg_id from reg_ids")
   if err != nil {
     log.Error("db.package_init", "regId updater failed to prepare select", err)
+  }
+
+  // Initialize vbof_metadata table prepared statements
+  insertVbof, err  = db.Prepare("insert into vbof_metadata (vbof_id, type, title) values (?, ?, ?)")
+  if err != nil {
+    log.Error("db.package_init", "vbof updater failed to prepare insert", err)
+  }
+  selectVbofMetadata, err = db.Prepare("select title, type from vbof_metadata where vbof_id=?")
+  if err != nil {
+    log.Error("db.package_init", "vbof updater failed to prepare select", err)
   }
 
   // No defer foo.Close() here since this is package init(); when these go out
@@ -166,6 +179,7 @@ func GetRegIds(skip []string) (regIds []string, err error) {
     log.Error("db.get_regids", "failed to fetch known regIds during query ", err)
     return rowIds, err
   } else {
+    defer rows.Close()
     for rows.Next() {
       var s string
       rows.Scan(&s)
@@ -184,10 +198,37 @@ func GetRegIds(skip []string) (regIds []string, err error) {
   return rowIds, nil
 }
 
+func GetVbofInfo(vbof string) (mimeType string, title string, err error){
+  log.Debug("db.GetVbofInfo", "booga", vbof)
+  rows, err := selectVbofMetadata.Query(vbof)
+  if err != nil {
+    log.Error("db.get_vbof", "failed to fetch metadata ", err)
+    return "", "", err
+  }
+  defer rows.Close()
+
+  if rows.Next() {
+    rows.Scan(&mimeType, &title)
+    log.Debug("db.GetVbofInfo", title + " " + mimeType)
+    return title, mimeType, nil
+  }
+  log.Debug("db.GetVbofInfo", "error")
+  return "", "", errors.New("no such vbof")
+}
+
+func StoreVbofInfo(vbof string, mimeType string, title string) (err error) {
+  _, err = insertVbof.Exec(vbof, mimeType, title)
+  if err != nil {
+    log.Warn("db.vbof_inserter", "failed to insert VBOF ", err)
+    return err
+  }
+  return nil
+}
+
 var Handler = common.Handler{
-  Recorder,
-  make(chan common.Event, 10),
-  map[common.EventCode]int{
-    common.TRIP: 1, common.RESET: 1, common.AJAR: 1, common.ANOMALY: 1,
+    Recorder,
+    make(chan common.Event, 10),
+    map[common.EventCode]int{
+      common.TRIP: 1, common.RESET: 1, common.AJAR: 1, common.ANOMALY: 1,
   },
 }
