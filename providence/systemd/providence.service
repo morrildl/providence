@@ -1,5 +1,5 @@
 [Unit]
-Description=Providence GPIO configuration
+Description=Providence monitor server
 After=gpiosetup.service
 
 [Service]
