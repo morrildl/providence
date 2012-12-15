@@ -14,7 +14,7 @@ function error {
 }
 
 for PIN in ${PINS}; do
-  echo "${PIN}" > /sys/class/gpio/export || error "PIN"
+  echo "${PIN}" > /sys/class/gpio/export || error "export"
   PIN_DIR="/sys/class/gpio/gpio${PIN}" || error "PIN_DIR"
   echo "in" > ${PIN_DIR}/direction || error "direction"
   echo "both" > ${PIN_DIR}/edge || error "edge"
@@ -27,3 +27,5 @@ for PIN in ${PINS}; do
     chmod ${GPIO_FILE_MODE} ${PIN_DIR}/${GPIO_FILE} || error "chmod file"
   done
 done
+
+logger -it $(basename $0) "Successfully configured GPIO for pins ${PINS}"
