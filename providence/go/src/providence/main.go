@@ -19,14 +19,17 @@ import (
   "providence/common"
   "providence/db"
   "providence/gcm"
+  "providence/gpio"
   "providence/log"
+  "providence/mock"
   "providence/policy"
   "providence/tty"
 )
 
 func main() {
   /* Stores handler function and its state and registration info. */
-  handlers := []common.Handler{tty.Handler, db.Handler, policy.Handler, gcm.Handler, camera.Handler}
+  sensorHandler := map[string]common.Handler{"GPIO": gpio.Handler, "TTY": tty.Handler, "Mock": mock.Handler}[common.Config.SensorInterface]
+  handlers := []common.Handler{sensorHandler, db.Handler, policy.Handler, gcm.Handler, camera.Handler}
 
   // start up the handlers as goroutines
   events := make(chan common.Event, 10)

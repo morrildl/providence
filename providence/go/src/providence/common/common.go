@@ -103,6 +103,7 @@ var Config struct {
   OAuthToken string
   SensorNames map[string]string
   SensorTypes map[string]SensorType
+  SensorInterface string
   AjarThreshold time.Duration
   ImageRetention string
   ImageDirectory string

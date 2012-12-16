@@ -17,10 +17,7 @@ package tty
 import (
   "bufio"
   "encoding/json"
-  "io"
-  "net/http"
   "os"
-  "strconv"
   "time"
 
   "providence/common"
@@ -57,41 +54,4 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
   }
 }
 
-/* Test-mode low-level event injector. Has the same role as ttyReader, but
- * listens on an HTTP server, so that event can be faked locally.
- */
-func MockReader(incoming chan common.Event, outgoing chan common.Event) {
-  c := make(chan common.Event, 5)
-  go func (c chan common.Event) {
-    http.HandleFunc("/fake", func(writer http.ResponseWriter, req *http.Request) {
-      err := req.ParseForm()
-      if err != nil {
-        log.Warn("tty.mock", "error parsing form in TTY helper: ", err)
-      } else {
-        which := req.Form["w"][0]
-        action, _ := strconv.Atoi(req.Form["a"][0])
-        c <- common.Event{Which:common.Sensors[which], Action:common.EventCode(action), When:time.Now()}
-      }
-      writer.WriteHeader(http.StatusOK)
-      io.WriteString(writer, "OK")
-    })
-
-    log.Error("tty.mock", "unexpected server shutdown", http.ListenAndServe(":" + strconv.Itoa(common.Config.ServerPort + 1), nil))
-  }(c)
-  for {
-    b := <-c
-    outgoing <- b
-  }
-}
-
-var Handler common.Handler
-
-func init() {
-  var f func(chan common.Event, chan common.Event)
-  if common.Config.MockTty {
-    f = MockReader
-  } else {
-    f = Reader
-  }
-  Handler = common.Handler{f, make(chan common.Event, 10), map[common.EventCode]int{}} // no registrations
-}
+var Handler = common.Handler{Reader, make(chan common.Event, 10), map[common.EventCode]int{}} // no registrations
