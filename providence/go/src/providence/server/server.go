@@ -77,7 +77,6 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         io.WriteString(writer, "FAIL")
         return
       }
-      log.Debug("server.vbof", req.RemoteAddr + " 1")
 
       mimeType := req.Header.Get("Content-Type")
       if mimeType == "" {
@@ -86,7 +85,6 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         io.WriteString(writer, "FAIL")
         return
       }
-      log.Debug("server.vbof", req.RemoteAddr + " " + mimeType)
       extension := map[string]string{
         "image/jpeg": "jpg",
         "image/png": "png",
@@ -94,13 +92,11 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         "image/tiff": "tif",
         "image/*": "jpg", // FAIL
       }[mimeType]
-      log.Debug("server.vbof", req.RemoteAddr + " " + extension)
 
+      req.ParseForm()
       title := req.Form.Get("subject") // don't care if "" as text is optional
-      log.Debug("server.vbof", req.RemoteAddr + " " + title)
 
       vbof_id := policy.GetId()
-      log.Debug("server.vbof", req.RemoteAddr + " " + vbof_id)
 
       err = db.StoreVbofInfo(vbof_id, mimeType, title)
       if err != nil {
@@ -111,7 +107,6 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       }
 
       fname := filepath.Join(common.Config.VbofImageDirectory, vbof_id + "." + extension)
-      log.Debug("server.vbof", req.RemoteAddr + " " + fname)
       file, err := os.Create(fname)
       if err != nil {
         log.Warn("camera.capture", "failed writing image contents for new vbof ", err)
@@ -121,12 +116,10 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       }
       defer file.Close()
       file.Write(body)
-      log.Debug("server.vbof", req.RemoteAddr + " hmph")
 
       url := common.Config.VbofImageUrlRoot + vbof_id + "." + extension
       log.Debug("server.vbof", req.RemoteAddr + " " + url)
       gcmSendUrlChan <- ShareUrlRequest{url, make([]string, 0)}
-      log.Debug("server.vbof", req.RemoteAddr + " booga")
 
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, "OK\n")
