@@ -149,7 +149,7 @@ func startBinaryMonitor(path string, outgoing chan common.Event) error {
 /* A ringing sensor is one which alternates rapidly between TRIP and RESET for
  * the duration of the event it is reporting. This is typical of electronic
  * sensors such as motion detectors. */
-func createRingerMonitor(path string, outgoing chan common.Event) error {
+func startRingerMonitor(path string, outgoing chan common.Event) error {
   monitor, err := makeGpioMonitor(path)
   if err != nil {
     return err
@@ -197,9 +197,10 @@ func createRingerMonitor(path string, outgoing chan common.Event) error {
  */
 func Reader(incoming chan common.Event, outgoing chan common.Event) {
   for path, _ := range common.Config.SensorNames {
+    log.Debug("gpio.Reader", "starting monitor for " + path)
     var err error
     if common.Config.SensorTypes[path] == common.MOTION {
-      err = createRingerMonitor(path, outgoing)
+      err = startRingerMonitor(path, outgoing)
     } else {
       err = startBinaryMonitor(path, outgoing)
     }
