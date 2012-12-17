@@ -2,7 +2,7 @@
 
 exec 2> /dev/null
 
-PINS="24 25 27"
+PINS="21 24 25"
 GPIO_FILES="active_low direction edge uevent value"
 GPIO_PIN_MODE=650
 GPIO_FILE_MODE=640
