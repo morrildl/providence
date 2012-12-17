@@ -103,10 +103,11 @@ func makeGpioMonitor(path string) (chan bool, error) {
 /* A binary sensor is a simple normally-closed switch, like a door or window
  * sensor. As a mechanical switch, it needs to be debounced. We accomplish
  * that by simply delaying the channel send by a debounce interval. */
-func startBinaryMonitor(path string, outgoing chan common.Event) error {
+func binaryMonitor(path string, outgoing chan common.Event) {
   monitor, err := makeGpioMonitor(path)
   if err != nil {
-    return err
+    log.Error("gpio.binaryMonitor", "error during GPIO setup, aborting", err)
+    return
   }
 
   timer := time.AfterFunc(0, func() {})
@@ -142,17 +143,16 @@ func startBinaryMonitor(path string, outgoing chan common.Event) error {
       outgoing <- common.Event{Which: common.Sensors[path], Action: action, When: time.Now()}
     })
   }
-
-  return nil
 }
 
 /* A ringing sensor is one which alternates rapidly between TRIP and RESET for
  * the duration of the event it is reporting. This is typical of electronic
  * sensors such as motion detectors. */
-func startRingerMonitor(path string, outgoing chan common.Event) error {
+func ringerMonitor(path string, outgoing chan common.Event) {
   monitor, err := makeGpioMonitor(path)
   if err != nil {
-    return err
+    log.Error("gpio.ringerMonitor", "error during GPIO setup, aborting", err)
+    return
   }
 
   logicalState := RESET
@@ -183,8 +183,6 @@ func startRingerMonitor(path string, outgoing chan common.Event) error {
       })
     }
   }
-
-  return nil
 }
 
 /* Reads 1/0 values from sensors connected to GPIO pins. Pin config is
@@ -200,9 +198,9 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
     log.Debug("gpio.Reader", "starting monitor for " + path)
     var err error
     if common.Config.SensorTypes[path] == common.MOTION {
-      err = startRingerMonitor(path, outgoing)
+      go ringerMonitor(path, outgoing)
     } else {
-      err = startBinaryMonitor(path, outgoing)
+      go binaryMonitor(path, outgoing)
     }
     if err != nil {
       log.Error("gpio.Reader", "error opening ", path, ", skipping ", err)
