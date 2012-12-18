@@ -176,7 +176,7 @@ func ringerMonitor(path string, outgoing chan common.Event) {
     // state for a brief duration into the future. If the sensor isn't done
     // ringing and falls back to TRIP, the timer.Stop() above will abort this
     // action, and we'll schedule a new one next it RESETs.
-    if rawState == RESET {
+    if rawState == RESET && logicalState == TRIP {
       timer = time.AfterFunc(DEBOUNCE_RINGER * time.Millisecond, func() {
         logicalState = RESET
         outgoing <- common.Event{Which: common.Sensors[path], Action: common.RESET, When: time.Now()}
