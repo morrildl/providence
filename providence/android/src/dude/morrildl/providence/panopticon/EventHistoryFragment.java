@@ -14,8 +14,13 @@
  */
 package dude.morrildl.providence.panopticon;
 
+import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
 
 import android.app.ListFragment;
 import android.database.Cursor;
@@ -47,35 +52,70 @@ public class EventHistoryFragment extends ListFragment {
 		onHiddenChanged(false);
 	}
 
+	private String getTimeFrom(String timestamp) throws ParseException {
+		SimpleDateFormat sdf = new SimpleDateFormat(
+				"yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
+		Date parsedTs = sdf.parse(timestamp);
+
+		DateFormat df = SimpleDateFormat
+				.getTimeInstance(SimpleDateFormat.MEDIUM);
+		return df.format(parsedTs);
+	}
+
+	private String getConditionalDateFrom(String timestamp)
+			throws ParseException {
+		SimpleDateFormat sdf = new SimpleDateFormat(
+				"yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
+		Date parsedTs = sdf.parse(timestamp);
+
+		Calendar today = Calendar.getInstance(TimeZone.getDefault());
+		Calendar midnight = Calendar.getInstance(TimeZone.getDefault());
+		midnight.clear();
+		midnight.set(today.get(Calendar.YEAR), today.get(Calendar.MONTH),
+				today.get(Calendar.DATE));
+
+		if (parsedTs.after(midnight.getTime())) {
+			return "";
+		}
+
+		DateFormat df = SimpleDateFormat
+				.getDateInstance(SimpleDateFormat.MEDIUM);
+		return df.format(parsedTs);
+	}
+
 	@Override
 	public void onHiddenChanged(boolean hidden) {
 		super.onHiddenChanged(hidden);
 		if (!hidden) {
 			OpenHelper helper = new OpenHelper(getActivity());
 			db = helper.getReadableDatabase();
-			c = db.query("events", new String[] { "which", "type", "event",
-					"event as image_event", "ts", "rowid as _id" },
-					"type <> 'Motion Sensor'", null, null, null, "ts desc");
+			c = db.query("events",
+					new String[] { "which", "type", "event",
+							"event as image_event", "ts", "rowid as _id",
+							"ts as ts2" }, "type <> 'Motion Sensor'", null,
+					null, null, "ts desc");
 
 			SimpleCursorAdapter adapter = new SimpleCursorAdapter(
 					getActivity(), R.layout.event_history_row, c, new String[] {
-							"which", "event", "image_event", "ts" }, new int[] {
-							R.id.event_which, R.id.event_action,
-							R.id.indicator_image, R.id.event_ts }, 0);
+							"which", "event", "image_event", "ts", "ts2" },
+					new int[] { R.id.event_which, R.id.event_action,
+							R.id.indicator_image, R.id.event_ts,
+							R.id.event_date }, 0);
 			adapter.setViewBinder(new SimpleCursorAdapter.ViewBinder() {
 				@Override
 				public boolean setViewValue(View view, Cursor c, int column) {
-					if (column == 4) {
+					if (column == 6) {
 						try {
-							SimpleDateFormat sdf = new SimpleDateFormat(
-									"yyyy'-'MM'-'dd'T'HH:mm:ss");
-							java.util.Date parsedTs = sdf.parse(c
-									.getString(column));
-
-							sdf = new SimpleDateFormat(
-									"EEE, dd MMMMMMMMM yyyy 'at' KK:mm:ssa");
-							String friendlyDate = sdf.format(parsedTs);
-							((TextView) view).setText(friendlyDate);
+							((TextView) view).setText(getConditionalDateFrom(c
+									.getString(column)));
+						} catch (ParseException e) {
+							return false;
+						}
+						return true;
+					} else if (column == 4) {
+						try {
+							((TextView) view).setText(getTimeFrom(c
+									.getString(column)));
 						} catch (ParseException e) {
 							return false;
 						}
@@ -83,7 +123,7 @@ public class EventHistoryFragment extends ListFragment {
 					} else if (column == 3) {
 						String type = c.getString(column);
 						int resource = 0;
-						if ("Opened".equals(type)) {
+						if ("Unexpectedly Opened".equals(type)) {
 							resource = R.drawable.ic_event_door;
 						} else if ("Detected Motion".equals(type)) {
 							resource = R.drawable.ic_event_motion;
@@ -104,16 +144,16 @@ public class EventHistoryFragment extends ListFragment {
 					R.id.motion_status_text);
 			if (tmpCursor.moveToFirst()) {
 				try {
-					SimpleDateFormat sdf = new SimpleDateFormat(
-							"yyyy'-'MM'-'dd'T'HH:mm:ss");
-					String dateString = tmpCursor.getString(0);
-					if (dateString != null) {
-						java.util.Date parsedTs = sdf.parse(dateString);
+					String timestamp = tmpCursor.getString(0);
+					if (timestamp != null) {
+						String timeString = getTimeFrom(timestamp);
+						String dateString = getConditionalDateFrom(timestamp);
 
-						sdf = new SimpleDateFormat(
-								"EEE, dd MMMMMMMMM yyyy 'at' KK:mm:ssa");
-						dateString = sdf.format(parsedTs);
-						tv.setText("Last motion detected at: " + dateString);
+						if (!"".equals(dateString)) {
+							timeString = timeString + " on " + dateString;
+						}
+						
+						tv.setText("Last motion detected at " + timeString);
 						tv.setVisibility(View.VISIBLE);
 					} else {
 						tv.setVisibility(View.GONE);

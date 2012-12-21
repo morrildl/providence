@@ -12,12 +12,17 @@
     <string name="latest_event_default_text">Odd! Could not find details for that event.</string>
     <string name="event_history_default_text">Event history will appear here.</string>
     <string name="unknown_image">Unspecified image.</string>
-    <string name="vbof_notif">VBOF!!!!</string>
+    <string name="vbof_notif">Incoming VBOF!!!!</string>
     <string name="vbof_name">VBOF!!!!</string>
-    
+    <string name="vbof_image_content_desc">VBOF!!!!</string>
+    <string name="button_cancel">Cancel</string>
+    <string name="button_okay">Send</string>
+
     <string-array name="providence_action_list">
         <item>History</item>
         <item>Latest</item>
     </string-array>
+
+    <string name="vbof_title_hint">Describe this image</string>
 
 </resources>

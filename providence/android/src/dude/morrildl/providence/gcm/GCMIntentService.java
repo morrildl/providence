@@ -31,7 +31,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.CursorLoader;
 import android.content.Intent;
 import android.content.res.Resources.NotFoundException;
 import android.database.Cursor;
@@ -80,6 +79,7 @@ public class GCMIntentService extends GCMBaseIntentService {
 				if (bytes == null || bytes.length == 0) {
 					return false;
 				}
+				imageTitle = imageTitle == null ? "" : imageTitle;
 
 				// Write the file to external storage
 				File f = Environment
@@ -106,12 +106,9 @@ public class GCMIntentService extends GCMBaseIntentService {
 				ContentValues values = new ContentValues(7);
 				if (imageTitle != null && !"".equals(imageTitle)) {
 					values.put(MediaStore.Images.Media.TITLE, imageTitle);
-					values.put(MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
-							imageTitle);
+					values.put(MediaStore.Images.Media.DESCRIPTION, imageTitle);
 				} else {
 					values.put(MediaStore.Images.Media.TITLE, fileId);
-					values.put(MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
-							fileId);
 				}
 				if (mimeType != null && !"".equals(mimeType)) {
 					values.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
@@ -131,6 +128,7 @@ public class GCMIntentService extends GCMBaseIntentService {
 						.setContentTitle(
 								context.getResources().getString(
 										R.string.vbof_notif))
+						.setContentText(imageTitle)
 						.setContentIntent(pi)
 						.setSmallIcon(R.drawable.ic_stat_event)
 						.setAutoCancel(true).getNotification();
@@ -176,21 +174,6 @@ public class GCMIntentService extends GCMBaseIntentService {
 
 	@Override
 	protected void onMessage(Context context, Intent intent) {
-		ContentValues values2 = new ContentValues(7);
-		values2.put(MediaStore.Images.Media.BUCKET_ID, 31337);
-		values2.put(MediaStore.Images.Media.BUCKET_DISPLAY_NAME, "VBOF");
-		Uri uri = getContentResolver().insert(
-				MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values2);
-		String[] proj = { MediaStore.Images.Media.DATA };
-		CursorLoader loader = new CursorLoader(context, uri, proj, null, null,
-				null);
-		Cursor cursor = loader.loadInBackground();
-		int column_index = cursor
-				.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-		cursor.moveToFirst();
-		String path = cursor.getString(column_index);
-		Log.e("booga flex booga flex booga booga flex", path);
-
 		String url = intent.getStringExtra("Url");
 		if (url != null && !"".equals(url)) {
 			new FetchVbofTask(this).execute(url);

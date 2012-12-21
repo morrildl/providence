@@ -1,8 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
-    android:id="@+id/main_container"
-    android:text="@string/vbof_name">
-</TextView>
+    android:layout_height="fill_parent" >
+
+    <ImageView
+        android:id="@+id/vbof_preview_image"
+        android:layout_width="wrap_content"
+        android:layout_height="386dp"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="true"
+        android:contentDescription="@string/vbof_image_content_desc" />
+
+    <RelativeLayout
+        android:id="@+id/vbof_bbar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_alignParentBottom="true" >
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dip"
+            android:layout_alignParentTop="true"
+            android:layout_marginLeft="4dip"
+            android:layout_marginRight="4dip"
+            android:background="?android:attr/dividerVertical" />
+
+        <View
+            android:id="@+id/vbof_bbar_divider"
+            android:layout_width="1dip"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="4dip"
+            android:layout_marginTop="4dip"
+            android:background="?android:attr/dividerVertical" />
+
+        <Button
+            android:id="@+id/vbof_button_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:layout_toLeftOf="@id/vbof_bbar_divider"
+            android:background="?android:attr/selectableItemBackground"
+            android:text="@android:string/cancel" />
+
+        <Button
+            android:id="@+id/vbof_button_okay"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentTop="true"
+            android:layout_toRightOf="@id/vbof_bbar_divider"
+            android:background="?android:attr/selectableItemBackground"
+            android:text="@string/button_okay" />
+    </RelativeLayout>
+
+    <EditText
+        android:id="@+id/vbof_title_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/vbof_bbar"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="4dp"
+        android:ems="10"
+        android:hint="@string/vbof_title_hint"
+        android:imeOptions="actionDone"
+        android:inputType="text" >
+
+        <requestFocus />
+    </EditText>
+
+</RelativeLayout>

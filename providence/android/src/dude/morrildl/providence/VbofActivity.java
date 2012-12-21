@@ -16,6 +16,14 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.TextView;
 import dude.morrildl.providence.util.Network;
 
 public class VbofActivity extends Activity {
@@ -33,7 +41,7 @@ public class VbofActivity extends Activity {
 				Log.w("VbofSendTask.doInBackground", "sent no-op intent");
 				return true;
 			}
-			
+
 			// Pull out the info from the Intent we are to share
 			Intent intent = params[0];
 			String mimeType = intent.resolveType(getContentResolver());
@@ -62,6 +70,7 @@ public class VbofActivity extends Activity {
 			HttpsURLConnection cxn = null;
 			try {
 				// Connect to server and upload the image data & metadata
+				subject = "?subject=" + Uri.encode(subject);
 				url = networkUtil.urlForResource(R.raw.vbof_send_url, subject);
 				cxn = (HttpsURLConnection) url.openConnection();
 				cxn.setSSLSocketFactory(networkUtil.getSslSocketFactory());
@@ -112,6 +121,44 @@ public class VbofActivity extends Activity {
 			throw new RuntimeException("exception loading the network utility",
 					e);
 		}
+		final EditText et = (EditText) findViewById(R.id.vbof_title_text);
+		et.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+			@Override
+			public boolean onEditorAction(TextView v, int actionId,
+					KeyEvent event) {
+				if (actionId == EditorInfo.IME_ACTION_DONE) {
+					InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+					imm.hideSoftInputFromWindow(et.getWindowToken(), 0);
+					return true;
+				}
+				return false;
+			}
+		});
+
+		((Button) findViewById(R.id.vbof_button_okay))
+				.setOnClickListener(new View.OnClickListener() {
+					@Override
+					public void onClick(View v) {
+						Intent intent = getIntent();
+						String title = ((EditText) findViewById(R.id.vbof_title_text))
+								.getText().toString();
+						if (title != null && !"".equals(title)) {
+							intent.putExtra(Intent.EXTRA_SUBJECT, title);
+						}
+						new VbofSendTask().execute(intent);
+						finish();
+						// TODO: detect & warn on failure
+						// TODO: IME config
+					}
+				});
+
+		((Button) findViewById(R.id.vbof_button_cancel))
+				.setOnClickListener(new View.OnClickListener() {
+					@Override
+					public void onClick(View v) {
+						finish();
+					}
+				});
 	}
 
 	@Override
@@ -122,7 +169,7 @@ public class VbofActivity extends Activity {
 	@Override
 	protected void onResume() {
 		super.onResume();
-		Intent intent = getIntent();
-		new VbofSendTask().execute(intent);
+		Uri uri = getIntent().getParcelableExtra(Intent.EXTRA_STREAM);
+		((ImageView) findViewById(R.id.vbof_preview_image)).setImageURI(uri);
 	}
 }
