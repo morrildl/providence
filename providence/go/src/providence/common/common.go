@@ -120,6 +120,10 @@ var Config struct {
     Duration string
     DaysOfWeek []time.Weekday // int, 0 - 6, 0 = Sunday
   }
+  OAuthAudience string
+  OAuthClientID string
+  GoogleOAuthCertsURL string
+  GoogleAccountWhitelist []string
 }
 
 func init() {
