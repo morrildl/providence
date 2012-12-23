@@ -1,4 +1,4 @@
-/* Copyright © 2012 Dan Morrill
+	/* Copyright © 2012 Dan Morrill
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import dude.morrildl.providence.gcm.GCMIntentService;
 import dude.morrildl.providence.panopticon.EventDetailsFragment;
 import dude.morrildl.providence.panopticon.EventHistoryFragment;
 import dude.morrildl.providence.util.Network;
+import dude.morrildl.providence.util.OAuthException;
 
 public class PanopticonActivity extends Activity /*
 												 * implements
@@ -49,7 +50,6 @@ public class PanopticonActivity extends Activity /*
 	private EventDetailsFragment eventDetailsFragment = null;
 	private EventHistoryFragment eventHistoryFragment = null;
 	private Network networkUtil;
-	//private static final String GAUTH_CLIENT_ID = "25235963451.apps.googleusercontent.com";
 
 	/** Called when the activity is first created. */
 	@Override
@@ -140,6 +140,10 @@ public class PanopticonActivity extends Activity /*
 			try {
 				url = networkUtil.urlForResource(R.raw.regid_url, null);
 				cxn = (HttpsURLConnection) url.openConnection();
+
+				String token = networkUtil.getAuthToken();
+				cxn.addRequestProperty("X-OAuth-JWT", token);
+				
 				cxn.setSSLSocketFactory(networkUtil.getSslSocketFactory());
 				cxn.setDoInput(true);
 				cxn.setRequestMethod("POST");
@@ -154,6 +158,8 @@ public class PanopticonActivity extends Activity /*
 				Log.e("doInBackground", "URL error", e);
 			} catch (IOException e) {
 				Log.e("doInBackground", "transmission error", e);
+			} catch (OAuthException e) {
+				Log.e("doInBackground", "failed fetching auth token", e);
 			} finally {
 				if (cxn != null)
 					cxn.disconnect();

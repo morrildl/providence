@@ -20,15 +20,23 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.content.Context;
 import android.content.res.Resources.NotFoundException;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+
+import com.google.android.gms.auth.GoogleAuthException;
+import com.google.android.gms.auth.GoogleAuthUtil;
+
 import dude.morrildl.providence.R;
 
 public class Network {
 	private static Network instance = null;
+
+	private static String oauthAudience = null;
 
 	public static Network getInstance(Context context) throws KeyStoreException {
 		if (instance == null) {
@@ -50,6 +58,12 @@ public class Network {
 
 	private Network(Context context) {
 		this.context = context;
+
+		InputStream is = context.getResources().openRawResource(
+				R.raw.oauth_audience);
+		oauthAudience = new java.util.Scanner(is).useDelimiter("\\A").next()
+				.trim();
+
 		try {
 			KeyStore ks = KeyStore.getInstance("BKS");
 			ks.load(context.getResources().openRawResource(R.raw.keystore),
@@ -148,5 +162,27 @@ public class Network {
 			s += query;
 		}
 		return new URL(s);
+	}
+
+	public String getAuthToken() throws OAuthException {
+		try {
+			Account[] emails = AccountManager.get(context).getAccountsByType(
+					"com.google");
+			String email = null;
+			for (Account account : emails) {
+				if (account.name.endsWith("@gmail.com")) {
+					email = account.name;
+					break;
+				}
+			}
+			if (email == null) {
+				throw new OAuthException("couldn't find a Gmail account");
+			}
+			return GoogleAuthUtil.getToken(context, email, oauthAudience);
+		} catch (IOException e) {
+			throw new OAuthException(e);
+		} catch (GoogleAuthException e) {
+			throw new OAuthException(e);
+		}
 	}
 }

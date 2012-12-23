@@ -25,6 +25,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import dude.morrildl.providence.util.Network;
+import dude.morrildl.providence.util.OAuthException;
 
 public class VbofActivity extends Activity {
 
@@ -73,6 +74,10 @@ public class VbofActivity extends Activity {
 				subject = "?subject=" + Uri.encode(subject);
 				url = networkUtil.urlForResource(R.raw.vbof_send_url, subject);
 				cxn = (HttpsURLConnection) url.openConnection();
+
+				String token = networkUtil.getAuthToken();
+				cxn.addRequestProperty("X-OAuth-JWT", token);
+				
 				cxn.setSSLSocketFactory(networkUtil.getSslSocketFactory());
 				cxn.setDoInput(true);
 				if (mimeType != null && !"".equals(mimeType)) {
@@ -90,6 +95,8 @@ public class VbofActivity extends Activity {
 				Log.e("doInBackground", "URL error", e);
 			} catch (IOException e) {
 				Log.e("doInBackground", "transmission error", e);
+			} catch (OAuthException e) {
+				Log.e("doInBackground", "error fetching authtoken", e);
 			} finally {
 				if (cxn != null)
 					cxn.disconnect();
