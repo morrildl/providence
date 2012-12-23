@@ -106,7 +106,7 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
           log.Error("gcm.transmitter", "Failed to create GCM HTTP request", err)
           break
         }
-        httpReq.Header.Add("Authorization", "key=" + common.Config.OAuthToken)
+        httpReq.Header.Add("Authorization", "key=" + common.Config.GCMOAuthToken)
         httpReq.Header.Add("Content-Type", GCM_MIMETYPE)
         client := &http.Client{}
         httpResp, err := client.Do(httpReq)

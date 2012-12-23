@@ -100,7 +100,7 @@ var Config struct {
   MockTty bool
   Debug bool
   LogFile string
-  OAuthToken string
+  GCMOAuthToken string
   SensorNames map[string]string
   SensorTypes map[string]SensorType
   SensorInterface string
