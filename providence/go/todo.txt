@@ -1,14 +1,12 @@
-- add photos to app and polish up UI
-- Finish VBOF
-- Authentication
-  - Need to add OAuth2 (or similar) checks when adding RegIds
-  - Need to add OAuth2 (or similar) checks when requesting /photos or /photo/*
+- add photo caching/thumbnailing manager
+- write photo grid View for ListActivity summary
 - add database create hooks (oops)
 - add an exclusion window override -- i.e. "armed mode" (requires new URL handler)
+- refactor app for better code hygiene
 - smarter notification behaviors for ajar & anomalies
   - policies?
   - coalesce GCM notifications?
-- add a handler for firing the physical alarm (requires ability to send to Arduino)
+- add a handler for firing the physical alarm
 
 
 - DONE - HTTPS
@@ -21,3 +19,5 @@
 - DONE - build in a heartbeat -- i.e. for phone to know that monitor is offline
 - DONE - GCM details (canonical IDs, etc.)
 - DONE - set the USB serial baud etc. settings so I don't have to run minicom (kludged anyway)
+- DONE - Authentication for RegIDs, VBOF, and camera fetch operations
+- DONE - Finish VBOF

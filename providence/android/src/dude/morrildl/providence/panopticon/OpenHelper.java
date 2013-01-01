@@ -19,9 +19,9 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 public class OpenHelper extends SQLiteOpenHelper {
-	public static final String CREATE_EVENTS = "create table events (id integer primary key, which text not null, type text not null, event text not null, ts timestamp)";
+	public static final String CREATE_EVENTS = "create table events (id integer primary key, which text not null, type text not null, event text not null, ts timestamp, eventid text not null)";
 	public static final String CREATE_LAST_MOTION = "create table last_motion (which text not null primary key, ts timestamp)";
-	public static final int DATABASE_VERSION = 2;
+	public static final int DATABASE_VERSION = 3;
 	public static final String REPLACE_LAST_MOTION = "replace into last_motion values (?, ?)";
 
 	private static final String DATABASE_NAME = "providence";
@@ -52,6 +52,9 @@ public class OpenHelper extends SQLiteOpenHelper {
 			db.execSQL("drop table events");
 			db.execSQL(CREATE_EVENTS);
 			db.execSQL(CREATE_LAST_MOTION);
+		}
+		if (oldVersion < 3) {
+			db.execSQL("alter table events add column eventid text not null default '0'");
 		}
 	}
 }

@@ -65,6 +65,8 @@ public class PanopticonActivity extends Activity /*
 		ft.show(eventHistoryFragment).hide(eventDetailsFragment);
 		ft.commit();
 
+		Config.load(this);
+
 		GCMRegistrar.checkDevice(this);
 		GCMRegistrar.checkManifest(this);
 		String regId = GCMRegistrar.getRegistrationId(this);
@@ -138,7 +140,7 @@ public class PanopticonActivity extends Activity /*
 			URL url;
 			HttpsURLConnection cxn = null;
 			try {
-				url = networkUtil.urlForResource(R.raw.regid_url, null);
+				url = new URL(Config.REGID_URL);
 				cxn = (HttpsURLConnection) url.openConnection();
 
 				String token = networkUtil.getAuthToken();

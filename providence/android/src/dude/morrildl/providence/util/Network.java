@@ -31,12 +31,11 @@ import android.util.Log;
 import com.google.android.gms.auth.GoogleAuthException;
 import com.google.android.gms.auth.GoogleAuthUtil;
 
+import dude.morrildl.providence.Config;
 import dude.morrildl.providence.R;
 
 public class Network {
 	private static Network instance = null;
-
-	private static String oauthAudience = null;
 
 	public static Network getInstance(Context context) throws KeyStoreException {
 		if (instance == null) {
@@ -49,6 +48,9 @@ public class Network {
 		if (instance.sslContext == null) {
 			throw new KeyStoreException("failure preparing SSL keystore");
 		}
+
+		Config.load(context);
+
 		return instance;
 	}
 
@@ -58,11 +60,6 @@ public class Network {
 
 	private Network(Context context) {
 		this.context = context;
-
-		InputStream is = context.getResources().openRawResource(
-				R.raw.oauth_audience);
-		oauthAudience = new java.util.Scanner(is).useDelimiter("\\A").next()
-				.trim();
 
 		try {
 			KeyStore ks = KeyStore.getInstance("BKS");
@@ -154,16 +151,6 @@ public class Network {
 		}
 	}
 
-	public URL urlForResource(int resource, String query)
-			throws MalformedURLException {
-		InputStream is = context.getResources().openRawResource(resource);
-		String s = new java.util.Scanner(is).useDelimiter("\\A").next().trim();
-		if (query != null) {
-			s += query;
-		}
-		return new URL(s);
-	}
-
 	public String getAuthToken() throws OAuthException {
 		try {
 			Account[] emails = AccountManager.get(context).getAccountsByType(
@@ -178,7 +165,7 @@ public class Network {
 			if (email == null) {
 				throw new OAuthException("couldn't find a Gmail account");
 			}
-			return GoogleAuthUtil.getToken(context, email, oauthAudience);
+			return GoogleAuthUtil.getToken(context, email, Config.OAUTH_AUDIENCE);
 		} catch (IOException e) {
 			throw new OAuthException(e);
 		} catch (GoogleAuthException e) {

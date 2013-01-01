@@ -204,6 +204,7 @@ public class GCMIntentService extends GCMBaseIntentService {
 		values.put("type", intent.getStringExtra("SensorTypeName"));
 		values.put("event", intent.getStringExtra("EventName"));
 		values.put("ts", ts);
+		values.put("eventid", intent.getStringExtra("EventID"));
 		db.beginTransaction();
 		db.insert("events", null, values);
 

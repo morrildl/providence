@@ -72,7 +72,7 @@ public class VbofActivity extends Activity {
 			try {
 				// Connect to server and upload the image data & metadata
 				subject = "?subject=" + Uri.encode(subject);
-				url = networkUtil.urlForResource(R.raw.vbof_send_url, subject);
+				url = new URL(Config.VBOF_SEND_URL + subject);
 				cxn = (HttpsURLConnection) url.openConnection();
 
 				String token = networkUtil.getAuthToken();
@@ -118,6 +118,8 @@ public class VbofActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+
+		Config.load(this);
 
 		setContentView(R.layout.vbof);
 		try {
