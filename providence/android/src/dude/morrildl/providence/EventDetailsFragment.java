@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package dude.morrildl.providence.panopticon;
+package dude.morrildl.providence;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -26,6 +26,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import dude.morrildl.providence.R;
+import dude.morrildl.providence.db.OpenHelper;
 
 public class EventDetailsFragment extends Fragment {
 	private long rowId;

@@ -38,8 +38,7 @@ import android.widget.Toast;
 import com.google.android.gcm.GCMRegistrar;
 
 import dude.morrildl.providence.gcm.GCMIntentService;
-import dude.morrildl.providence.panopticon.EventDetailsFragment;
-import dude.morrildl.providence.panopticon.EventHistoryFragment;
+import dude.morrildl.providence.util.Config;
 import dude.morrildl.providence.util.Network;
 import dude.morrildl.providence.util.OAuthException;
 

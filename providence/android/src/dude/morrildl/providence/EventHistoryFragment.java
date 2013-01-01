@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package dude.morrildl.providence.panopticon;
+package dude.morrildl.providence;
 
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -33,8 +33,8 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
-import dude.morrildl.providence.PanopticonActivity;
 import dude.morrildl.providence.R;
+import dude.morrildl.providence.db.OpenHelper;
 
 public class EventHistoryFragment extends ListFragment {
 	private Cursor c;

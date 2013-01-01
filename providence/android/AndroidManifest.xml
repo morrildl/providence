@@ -44,7 +44,7 @@
             </intent-filter>
         </receiver>
         <receiver
-            android:name=".gcm.GCMBroadcastReceiver"
+            android:name="dude.morrildl.providence.gcm.GCMBroadcastReceiver"
             android:permission="com.google.android.c2dm.permission.SEND" >
             <intent-filter>
                 <action android:name="com.google.android.c2dm.intent.RECEIVE" />
@@ -55,11 +55,11 @@
         </receiver>
 
         <service
-            android:name=".gcm.GCMIntentService"
+            android:name="dude.morrildl.providence.gcm.GCMIntentService"
             android:exported="false" />
 
         <activity
-            android:name="VbofActivity"
+            android:name="dude.morrildl.providence.VbofActivity"
             android:exported="true"
             android:label="@string/vbof_name"
             android:theme="@style/android:Theme.Holo.Light"

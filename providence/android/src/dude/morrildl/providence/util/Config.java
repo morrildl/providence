@@ -1,9 +1,10 @@
-package dude.morrildl.providence;
+package dude.morrildl.providence.util;
 
 import java.util.Properties;
 
 import android.content.Context;
 import android.util.Log;
+import dude.morrildl.providence.R;
 
 public class Config {
 	private static boolean loaded = false;

@@ -24,6 +24,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
+import dude.morrildl.providence.util.Config;
 import dude.morrildl.providence.util.Network;
 import dude.morrildl.providence.util.OAuthException;
 

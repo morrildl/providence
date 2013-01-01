@@ -31,7 +31,6 @@ import android.util.Log;
 import com.google.android.gms.auth.GoogleAuthException;
 import com.google.android.gms.auth.GoogleAuthUtil;
 
-import dude.morrildl.providence.Config;
 import dude.morrildl.providence.R;
 
 public class Network {

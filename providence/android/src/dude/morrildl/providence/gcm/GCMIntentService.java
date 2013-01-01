@@ -45,7 +45,7 @@ import com.google.android.gcm.GCMBaseIntentService;
 
 import dude.morrildl.providence.PanopticonActivity;
 import dude.morrildl.providence.R;
-import dude.morrildl.providence.panopticon.OpenHelper;
+import dude.morrildl.providence.db.OpenHelper;
 import dude.morrildl.providence.util.Network;
 import dude.morrildl.providence.util.OAuthException;
 
@@ -73,7 +73,7 @@ public class GCMIntentService extends GCMBaseIntentService {
 
 				String token = networkUtil.getAuthToken();
 				cxn.addRequestProperty("X-OAuth-JWT", token);
-				
+
 				cxn.setSSLSocketFactory(networkUtil.getSslSocketFactory());
 				cxn.setDoInput(true);
 				cxn.setRequestMethod("GET");
@@ -133,8 +133,7 @@ public class GCMIntentService extends GCMBaseIntentService {
 						.setContentTitle(
 								context.getResources().getString(
 										R.string.vbof_notif))
-						.setContentText(imageTitle)
-						.setContentIntent(pi)
+						.setContentText(imageTitle).setContentIntent(pi)
 						.setSmallIcon(R.drawable.ic_stat_event)
 						.setAutoCancel(true).getNotification();
 				((NotificationManager) context
@@ -152,7 +151,8 @@ public class GCMIntentService extends GCMBaseIntentService {
 				Log.w("FetchVbofTask.doInBackground",
 						"did server send us the wrong kind of URL?", e);
 			} catch (OAuthException e) {
-				Log.e("FetchVbofTask.doInBackground", "error fetching authtoken", e);
+				Log.e("FetchVbofTask.doInBackground",
+						"error fetching authtoken", e);
 			} finally {
 				if (cxn != null)
 					cxn.disconnect();
