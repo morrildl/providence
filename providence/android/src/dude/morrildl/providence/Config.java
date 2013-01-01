@@ -23,7 +23,7 @@ public class Config {
 					Properties props = new Properties();
 					try {
 						props.load(context.getResources().openRawResource(
-								R.raw.oauth_audience));
+								R.raw.config));
 					} catch (Exception e) {
 						Log.e("Config.loadConfig", "exception during load", e);
 					}
