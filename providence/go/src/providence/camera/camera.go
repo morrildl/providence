@@ -51,10 +51,10 @@ func startPhotoPurger() {
           log.Warn("camera.purger", "file open failed on " + common.Config.ImageDirectory)
           break
         }
-        defer imageDir.Close()
         finfos, err := imageDir.Readdir(-1)
         if err != nil {
           log.Warn("camera.purger", "WARNING: ReadDir failure on " + common.Config.ImageDirectory)
+          imageDir.Close()
           break
         }
         count := 0
@@ -73,6 +73,8 @@ func startPhotoPurger() {
           }
         }
         log.Status("camera.purger", "removed " + strconv.Itoa(count) + " images")
+
+        imageDir.Close()
       }
     }
   }()

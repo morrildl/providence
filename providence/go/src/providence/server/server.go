@@ -55,6 +55,8 @@ func startCertFetcher() {
       err = dec.Decode(&validCerts)
       log.Debug("server.certFetcher", validCerts)
 
+      res.Body.Close()
+
       <-ticker
     }
   }()
