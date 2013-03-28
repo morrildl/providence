@@ -29,7 +29,7 @@ import (
  */
 func MockReader(incoming chan common.Event, outgoing chan common.Event) {
   c := make(chan common.Event, 5)
-  go func (c chan common.Event) {
+  go func(c chan common.Event) {
     http.HandleFunc("/fake", func(writer http.ResponseWriter, req *http.Request) {
       err := req.ParseForm()
       if err != nil {
@@ -37,13 +37,13 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
       } else {
         which := req.Form["w"][0]
         action, _ := strconv.Atoi(req.Form["a"][0])
-        c <- common.Event{Which:common.Sensors[which], Action:common.EventCode(action), When:time.Now()}
+        c <- common.Event{Which: common.Sensors[which], Action: common.EventCode(action), When: time.Now()}
       }
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, "OK")
     })
 
-    log.Error("mock.reader", "unexpected server shutdown", http.ListenAndServe(":" + strconv.Itoa(common.Config.ServerPort + 1), nil))
+    log.Error("mock.reader", "unexpected server shutdown", http.ListenAndServe(":"+strconv.Itoa(common.Config.ServerPort+1), nil))
   }(c)
   for {
     b := <-c

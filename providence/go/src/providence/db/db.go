@@ -26,13 +26,13 @@ import (
 )
 
 var (
-  db *sql.DB
-  insertEvent *sql.Stmt
-  insertRegId *sql.Stmt
-  updateRegId *sql.Stmt
-  deleteRegId *sql.Stmt
-  selectRegId *sql.Stmt
-  insertVbof *sql.Stmt
+  db                 *sql.DB
+  insertEvent        *sql.Stmt
+  insertRegId        *sql.Stmt
+  updateRegId        *sql.Stmt
+  deleteRegId        *sql.Stmt
+  selectRegId        *sql.Stmt
+  insertVbof         *sql.Stmt
   selectVbofMetadata *sql.Stmt
 )
 
@@ -70,7 +70,7 @@ func init() {
   }
 
   // Initialize vbof_metadata table prepared statements
-  insertVbof, err  = db.Prepare("insert into vbof_metadata (vbof_id, type, title) values (?, ?, ?)")
+  insertVbof, err = db.Prepare("insert into vbof_metadata (vbof_id, type, title) values (?, ?, ?)")
   if err != nil {
     log.Error("db.package_init", "vbof updater failed to prepare insert", err)
   }
@@ -95,17 +95,18 @@ func Recorder(incoming chan common.Event, outgoing chan common.Event) {
 
 /* Message object sent to the RegID persistence sink. */
 type RegIdUpdate struct {
-  RegId string
+  RegId          string
   CanonicalRegId string
-  Remove bool
+  Remove         bool
 }
+
 /* Spin up a goroutine that records user devices' change requests to the reg
  * ID list in the SQLite database.
  */
 func StartRegIdUpdater() chan RegIdUpdate {
   updateChan := make(chan RegIdUpdate)
 
-  go func () {
+  go func() {
     // listen for updates & take the appropriate action
     for {
       select {
@@ -198,7 +199,7 @@ func GetRegIds(skip []string) (regIds []string, err error) {
   return rowIds, nil
 }
 
-func GetVbofInfo(vbof string) (mimeType string, title string, err error){
+func GetVbofInfo(vbof string) (mimeType string, title string, err error) {
   log.Debug("db.GetVbofInfo", "booga", vbof)
   rows, err := selectVbofMetadata.Query(vbof)
   if err != nil {
@@ -209,7 +210,7 @@ func GetVbofInfo(vbof string) (mimeType string, title string, err error){
 
   if rows.Next() {
     rows.Scan(&mimeType, &title)
-    log.Debug("db.GetVbofInfo", title + " " + mimeType)
+    log.Debug("db.GetVbofInfo", title+" "+mimeType)
     return title, mimeType, nil
   }
   log.Debug("db.GetVbofInfo", "error")
@@ -226,9 +227,9 @@ func StoreVbofInfo(vbof string, mimeType string, title string) (err error) {
 }
 
 var Handler = common.Handler{
-    Recorder,
-    make(chan common.Event, 10),
-    map[common.EventCode]int{
-      common.TRIP: 1, common.RESET: 1, common.AJAR: 1, common.ANOMALY: 1,
+  Recorder,
+  make(chan common.Event, 10),
+  map[common.EventCode]int{
+    common.TRIP: 1, common.RESET: 1, common.AJAR: 1, common.ANOMALY: 1,
   },
 }

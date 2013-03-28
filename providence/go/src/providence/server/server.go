@@ -72,7 +72,7 @@ func startCertFetcher() {
  * Returns the email address from the claim on success; returns "" and an error on failure.
  */
 func verifyToken(rawToken string) (string, error) {
-  parsedToken, err := jwt.Parse(rawToken, func (token *jwt.Token) ([]byte, error) {
+  parsedToken, err := jwt.Parse(rawToken, func(token *jwt.Token) ([]byte, error) {
     kid := token.Header["kid"].(string)
     cert, ok := validCerts[kid]
     if ok {
@@ -105,16 +105,16 @@ func verifyToken(rawToken string) (string, error) {
   aud := parsedToken.Claims["aud"].(string)
   cid := parsedToken.Claims["cid"].(string)
   if !authorized {
-    log.Warn("server.verifyToken", "received token from unauthorized GAIA " + email)
+    log.Warn("server.verifyToken", "received token from unauthorized GAIA "+email)
     return "", errors.New("token is for unauthorized " + email)
   }
 
   if parsedToken.Claims["aud"] != common.Config.OAuthAudience {
-    log.Warn("server.verifyToken", "received token for wrong aud " + aud)
+    log.Warn("server.verifyToken", "received token for wrong aud "+aud)
     return "", errors.New("token is for unrecognized aud " + aud)
   }
   if parsedToken.Claims["cid"] != common.Config.OAuthClientID {
-    log.Warn("server.verifyToken", "received token for wrong cid " + cid)
+    log.Warn("server.verifyToken", "received token for wrong cid "+cid)
     return "", errors.New("token is for unrecognized cid " + cid)
   }
 
@@ -143,14 +143,15 @@ func checkAuth(writer http.ResponseWriter, req *http.Request) bool {
     return false
   }
 
-  log.Debug("server.checkAuth", "authenticated HTTP request from " + email)
+  log.Debug("server.checkAuth", "authenticated HTTP request from "+email)
   return true
 }
 
 type ShareUrlRequest struct {
-  Url string
+  Url  string
   Skip []string
 }
+
 /* Spins up an HTTP server in a goroutine to which user devices make requests
  * to add & delete registration IDs, per the GCM spec. Server also implements
  * a trivial heartbeat URL that devices can use to detect if the monitor goes
@@ -160,7 +161,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
   startCertFetcher()
   regIdRequestChan := make(chan db.RegIdUpdate, 5)
   gcmSendUrlChan := make(chan ShareUrlRequest, 5)
-  go func () {
+  go func() {
     // registration ID handler; RESTful:
     // - POST = add reg ID(s) listed in body
     // - DELETE = discard reg ID(s) listed in body
@@ -198,7 +199,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         return
       }
 
-      log.Debug("server.vbof", "incoming request from " + req.RemoteAddr)
+      log.Debug("server.vbof", "incoming request from "+req.RemoteAddr)
       body, err := ioutil.ReadAll(req.Body)
       if err != nil || len(body) < 1 {
         log.Warn("server.vbof", "failure reading body in /vbofupload", err)
@@ -216,10 +217,10 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       }
       extension := map[string]string{
         "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/gif": "gif",
+        "image/png":  "png",
+        "image/gif":  "gif",
         "image/tiff": "tif",
-        "image/*": "jpg", // FAIL
+        "image/*":    "jpg", // FAIL
       }[mimeType]
 
       req.ParseForm()
@@ -235,7 +236,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         return
       }
 
-      fname := filepath.Join(common.Config.VbofImageDirectory, vbof_id + "." + extension)
+      fname := filepath.Join(common.Config.VbofImageDirectory, vbof_id+"."+extension)
       file, err := os.Create(fname)
       if err != nil {
         log.Warn("server.vbof", "failed writing image contents for new vbof ", err)
@@ -247,7 +248,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       file.Write(body)
 
       url := common.Config.VbofImageUrlRoot + vbof_id + "." + extension
-      log.Debug("server.vbof", req.RemoteAddr + " " + url)
+      log.Debug("server.vbof", req.RemoteAddr+" "+url)
       gcmSendUrlChan <- ShareUrlRequest{url, make([]string, 0)}
 
       writer.WriteHeader(http.StatusOK)
@@ -277,14 +278,14 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
 
       dir, err := os.Open(common.Config.ImageDirectory)
       if err != nil {
-        log.Error("server.photos", "failed to open " + common.Config.ImageDirectory)
+        log.Error("server.photos", "failed to open "+common.Config.ImageDirectory)
         doerr()
         return
       }
       defer dir.Close()
       finfos, err := dir.Readdir(-1)
       if err != nil {
-        log.Error("server.photos", "failed to enumerate " + common.Config.ImageDirectory)
+        log.Error("server.photos", "failed to enumerate "+common.Config.ImageDirectory)
         doerr()
         return
       }
@@ -313,7 +314,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         }
         urls := make([]string, 0)
         for _, file := range files {
-          urls = append(urls, common.Config.ImageUrlRoot + file)
+          urls = append(urls, common.Config.ImageUrlRoot+file)
         }
         urlsById[id] = urls
       }
@@ -337,7 +338,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     serve_image := func(path string, message string, mimeType string, writer http.ResponseWriter, req *http.Request) {
       f, err := os.Open(path)
       if err != nil {
-        log.Debug("server.photo", "404 URL " + req.URL.Path + " from " + req.RemoteAddr)
+        log.Debug("server.photo", "404 URL "+req.URL.Path+" from "+req.RemoteAddr)
         writer.WriteHeader(http.StatusNotFound)
         io.WriteString(writer, "404")
         return
@@ -346,13 +347,13 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
 
       bytes, err := ioutil.ReadAll(f)
       if err != nil {
-        log.Error("server.photo", "failed reading file for URL " + req.URL.Path + " from " + req.RemoteAddr)
+        log.Error("server.photo", "failed reading file for URL "+req.URL.Path+" from "+req.RemoteAddr)
         writer.WriteHeader(http.StatusInternalServerError)
         io.WriteString(writer, "FAIL")
         return
       }
 
-      log.Status("server.photo", "serving " + path + " to " + req.RemoteAddr)
+      log.Status("server.photo", "serving "+path+" to "+req.RemoteAddr)
 
       writer.Header().Add("Content-Type", mimeType)
       if message != "" {
@@ -370,19 +371,19 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       fnames := strings.Split(req.URL.Path, "/")
       if len(fnames) != 3 {
         // means there is one or more extra chunks in there, which could be an attack; do nothing
-        log.Warn("server.vbof", "nonconformant URL " + req.URL.Path + " from " + req.RemoteAddr)
+        log.Warn("server.vbof", "nonconformant URL "+req.URL.Path+" from "+req.RemoteAddr)
         writer.WriteHeader(http.StatusNotFound)
         io.WriteString(writer, "404")
         return
       }
-      fname := fnames[len(fnames) - 1]
+      fname := fnames[len(fnames)-1]
       fpath := filepath.Join(common.Config.VbofImageDirectory, fname)
 
       vbof_id := strings.Split(fname, ".")[0]
       mimeType, title, err := db.GetVbofInfo(vbof_id)
       if err != nil || mimeType == "" {
-        log.Debug("server.vbof", mimeType + " " + title, err)
-        log.Warn("server.vbof", "request for nonexistent VBOF " + vbof_id, err)
+        log.Debug("server.vbof", mimeType+" "+title, err)
+        log.Warn("server.vbof", "request for nonexistent VBOF "+vbof_id, err)
         writer.WriteHeader(http.StatusNotFound)
         io.WriteString(writer, "404")
         return
@@ -400,12 +401,12 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       fnames := strings.Split(req.URL.Path, "/")
       if len(fnames) != 3 {
         // means there is one or more extra chunks in there, which could be an attack; do nothing
-        log.Warn("server.photo", "nonconformant URL " + req.URL.Path + " from " + req.RemoteAddr)
+        log.Warn("server.photo", "nonconformant URL "+req.URL.Path+" from "+req.RemoteAddr)
         writer.WriteHeader(http.StatusNotFound)
         io.WriteString(writer, "404")
         return
       }
-      fname := fnames[len(fnames) - 1]
+      fname := fnames[len(fnames)-1]
       fpath := filepath.Join(common.Config.ImageDirectory, fname)
 
       serve_image(fpath, "", "image/jpeg", writer, req)
@@ -415,12 +416,12 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     port := strconv.Itoa(common.Config.ServerPort)
     haveCert := common.Config.HttpsCertFile != "" && common.Config.HttpsKeyFile != ""
     if haveCert {
-      log.Status("server.http", "starting HTTPS on port " + port)
+      log.Status("server.http", "starting HTTPS on port "+port)
       log.Error("server.http", "shut down unexpectedly",
-      http.ListenAndServeTLS(":" + port, common.Config.HttpsCertFile, common.Config.HttpsKeyFile, nil))
+        http.ListenAndServeTLS(":"+port, common.Config.HttpsCertFile, common.Config.HttpsKeyFile, nil))
     } else {
-      log.Status("server.http", "starting HTTP on port " + port)
-      log.Error("server.http", "shut down unexpectedly", http.ListenAndServe(":" + port, nil))
+      log.Status("server.http", "starting HTTP on port "+port)
+      log.Error("server.http", "shut down unexpectedly", http.ListenAndServe(":"+port, nil))
     }
   }()
   return regIdRequestChan, gcmSendUrlChan

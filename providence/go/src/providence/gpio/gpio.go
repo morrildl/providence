@@ -25,11 +25,11 @@ import (
 
 const (
   DEBOUNCE_BINARY time.Duration = 75
-  DEBOUNCE_RINGER = 50
+  DEBOUNCE_RINGER               = 50
 )
 
 const (
-  TRIP bool = false
+  TRIP  bool = false
   RESET bool = true
 )
 
@@ -44,7 +44,7 @@ func makeGpioMonitor(path string) (chan bool, error) {
   }
 
   // open the actual GPIO input file; expected to be /sys/class/gpio/gpio${PIN}/value
-  file, err := os.OpenFile(path, 0 | syscall.O_RDONLY | syscall.O_NONBLOCK, 0)
+  file, err := os.OpenFile(path, 0|syscall.O_RDONLY|syscall.O_NONBLOCK, 0)
   if err != nil {
     log.Debug("gpio.makeGpioMonitor", "failed to open GPIO file")
     return nil, err
@@ -70,10 +70,10 @@ func makeGpioMonitor(path string) (chan bool, error) {
         /*if events[0].Events & syscall.EPOLLERR != 0 || events[0].Events & syscall.EPOLLHUP != 0  {
           fmt.Println("epoll error")
         } else*/
-        if events[0].Events & syscall.EPOLLPRI != 0 {
+        if events[0].Events&syscall.EPOLLPRI != 0 {
           // file contents changed. seek back to file start and re-read new contents
           if _, err := file.Seek(0, 0); err != nil {
-            log.Error("gpio.rawMonitor", "seek failure on " + path, err)
+            log.Error("gpio.rawMonitor", "seek failure on "+path, err)
             continue
           }
           count, err := file.Read(buf)
@@ -84,14 +84,14 @@ func makeGpioMonitor(path string) (chan bool, error) {
             case buf[0] == '1':
               ch <- true
             default:
-              log.Error("gpio.rawMonitor", "unexpected GPIO file character " + string(buf[0]))
+              log.Error("gpio.rawMonitor", "unexpected GPIO file character "+string(buf[0]))
             }
           } else {
-            log.Error("gpio.rawMonitor", "file read failure on " + path, err)
+            log.Error("gpio.rawMonitor", "file read failure on "+path, err)
             continue
           }
         } else {
-          log.Error("gpio.rawMonitor", "epoll_wait() woke for " + path + " without EPOLLPRI; events=" + string(events[0].Events))
+          log.Error("gpio.rawMonitor", "epoll_wait() woke for "+path+" without EPOLLPRI; events="+string(events[0].Events))
         }
       }
     }
@@ -138,7 +138,7 @@ func binaryMonitor(path string, outgoing chan common.Event) {
     // anon func will send the event message in DEBOUNCE_BINARY milliseconds; if
     // we are not settled, the timer.Stop() call above will abort the prior send,
     // and we'll schedule a new one starting from now.
-    timer = time.AfterFunc(DEBOUNCE_BINARY * time.Millisecond, func() {
+    timer = time.AfterFunc(DEBOUNCE_BINARY*time.Millisecond, func() {
       lastSent = state
       outgoing <- common.Event{Which: common.Sensors[path], Action: action, When: time.Now()}
     })
@@ -156,7 +156,7 @@ func ringerMonitor(path string, outgoing chan common.Event) {
   }
 
   logicalState := RESET
-  timer := time.AfterFunc(0, func(){})
+  timer := time.AfterFunc(0, func() {})
 
   for {
     rawState := <-monitor
@@ -166,8 +166,8 @@ func ringerMonitor(path string, outgoing chan common.Event) {
     // the start of a ringing interval, so update our logical state and send
     // the TRIP event immediately
     if rawState == TRIP && logicalState == RESET {
-        logicalState = TRIP
-        outgoing <- common.Event{Which: common.Sensors[path], Action: common.TRIP, When: time.Now()}
+      logicalState = TRIP
+      outgoing <- common.Event{Which: common.Sensors[path], Action: common.TRIP, When: time.Now()}
     }
 
     // when we see sensor go back to RESET, it could be the end of the ringing
@@ -177,7 +177,7 @@ func ringerMonitor(path string, outgoing chan common.Event) {
     // ringing and falls back to TRIP, the timer.Stop() above will abort this
     // action, and we'll schedule a new one next it RESETs.
     if rawState == RESET && logicalState == TRIP {
-      timer = time.AfterFunc(DEBOUNCE_RINGER * time.Millisecond, func() {
+      timer = time.AfterFunc(DEBOUNCE_RINGER*time.Millisecond, func() {
         logicalState = RESET
         outgoing <- common.Event{Which: common.Sensors[path], Action: common.RESET, When: time.Now()}
       })
@@ -195,7 +195,7 @@ func ringerMonitor(path string, outgoing chan common.Event) {
  */
 func Reader(incoming chan common.Event, outgoing chan common.Event) {
   for path, _ := range common.Config.SensorNames {
-    log.Debug("gpio.Reader", "starting monitor for " + path)
+    log.Debug("gpio.Reader", "starting monitor for "+path)
     var err error
     if common.Config.SensorTypes[path] == common.MOTION {
       go ringerMonitor(path, outgoing)

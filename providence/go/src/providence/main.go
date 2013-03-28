@@ -14,6 +14,7 @@
  */
 
 package main
+
 import (
   "providence/camera"
   "providence/common"
@@ -42,7 +43,7 @@ func main() {
   // loop forever, sending generated events to the listeners who want to hear them
   for {
     evt := <-events
-    log.Status("main.dispatcher", "processing event for " + evt.Which.Name + " " + evt.Description())
+    log.Status("main.dispatcher", "processing event for "+evt.Which.Name+" "+evt.Description())
     for _, h := range handlers {
       _, ok := h.Events[evt.Action]
       if ok {

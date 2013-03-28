@@ -38,7 +38,7 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
   }
 
   type rawEvent struct {
-    Which string
+    Which  string
     Action int
   }
   reader := bufio.NewReader(file)
@@ -47,7 +47,7 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
   for {
     err := dec.Decode(&e)
     if err == nil {
-      outgoing <- common.Event{Which:common.Sensors[e.Which], Action:common.EventCode(e.Action), When:time.Now()}
+      outgoing <- common.Event{Which: common.Sensors[e.Which], Action: common.EventCode(e.Action), When: time.Now()}
     } else {
       log.Warn("tty.reader", "JSON parse error from tty")
     }

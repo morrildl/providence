@@ -27,26 +27,29 @@ import (
 )
 
 type SensorType int
+
 const (
   WINDOW SensorType = iota
   DOOR
   MOTION
 )
+
 type Sensor struct {
   Name string
-  ID string
+  ID   string
   Kind SensorType
 }
+
 func (sensor Sensor) KindName() string {
   return map[SensorType]string{
     WINDOW: "Window",
-    DOOR: "Door",
+    DOOR:   "Door",
     MOTION: "Motion Sensor",
   }[sensor.Kind]
 }
 
-
 type EventCode int
+
 const (
   TRIP EventCode = iota
   RESET
@@ -54,36 +57,37 @@ const (
   AJAR_RESOLVED
   ANOMALY
 )
+
 type Event struct {
-  Which Sensor
+  Which  Sensor
   Action EventCode
-  When time.Time
-  Id string
+  When   time.Time
+  Id     string
 }
 
 /* Returns a sensor-type-specific human string for an event code.  */
 func (event Event) Description() string {
   return map[SensorType]map[EventCode]string{
     WINDOW: map[EventCode]string{
-      TRIP: "Opened",
-      RESET: "Closed",
-      AJAR: "Ajar",
+      TRIP:          "Opened",
+      RESET:         "Closed",
+      AJAR:          "Ajar",
       AJAR_RESOLVED: "Closed",
-      ANOMALY: "Unexpectedly Opened",
+      ANOMALY:       "Unexpectedly Opened",
     },
     DOOR: map[EventCode]string{
-      TRIP: "Opened",
-      RESET: "Closed",
-      AJAR: "Ajar",
+      TRIP:          "Opened",
+      RESET:         "Closed",
+      AJAR:          "Ajar",
       AJAR_RESOLVED: "Closed",
-      ANOMALY: "Unexpectedly Opened",
+      ANOMALY:       "Unexpectedly Opened",
     },
     MOTION: map[EventCode]string{
-      TRIP: "Detected Motion",
-      RESET: "Still",
-      AJAR: "Ongoing Motion",
+      TRIP:          "Detected Motion",
+      RESET:         "Still",
+      AJAR:          "Ongoing Motion",
       AJAR_RESOLVED: "Still",
-      ANOMALY: "Unexpected Motion",
+      ANOMALY:       "Unexpected Motion",
     },
   }[event.Which.Kind][event.Action]
 }
@@ -92,37 +96,37 @@ var Sensors map[string]Sensor
 
 /* Global config structure. */
 var Config struct {
-  Tty string
-  ServerPort int
-  HttpsCertFile string
-  HttpsKeyFile string
-  DatabasePath string
-  MockTty bool
-  Debug bool
-  LogFile string
-  GCMOAuthToken string
-  SensorNames map[string]string
-  SensorTypes map[string]SensorType
-  SensorInterface string
-  AjarThreshold time.Duration
-  ImageRetention string
-  ImageDirectory string
-  ImageUrlRoot string
+  Tty                string
+  ServerPort         int
+  HttpsCertFile      string
+  HttpsKeyFile       string
+  DatabasePath       string
+  MockTty            bool
+  Debug              bool
+  LogFile            string
+  GCMOAuthToken      string
+  SensorNames        map[string]string
+  SensorTypes        map[string]SensorType
+  SensorInterface    string
+  AjarThreshold      time.Duration
+  ImageRetention     string
+  ImageDirectory     string
+  ImageUrlRoot       string
   VbofImageDirectory string
-  VbofImageUrlRoot string
-  CameraConfig map[string][]struct {
-    Url string
+  VbofImageUrlRoot   string
+  CameraConfig       map[string][]struct {
+    Url      string
     Interval int
-    Count int
+    Count    int
   }
   ExclusionIntervals []struct {
-    Start string
-    Duration string
+    Start      string
+    Duration   string
     DaysOfWeek []time.Weekday // int, 0 - 6, 0 = Sunday
   }
-  OAuthAudience string
-  OAuthClientID string
-  GoogleOAuthCertsURL string
+  OAuthAudience          string
+  OAuthClientID          string
+  GoogleOAuthCertsURL    string
   GoogleAccountWhitelist []string
 }
 
@@ -133,11 +137,11 @@ func init() {
 
   file, err := os.Open(configFile)
   if err != nil {
-    log.Fatal("loading config failed opening the config file '" + configFile + "'", err)
+    log.Fatal("loading config failed opening the config file '"+configFile+"'", err)
   }
   jsonText, err := ioutil.ReadAll(file)
   if err != nil {
-    log.Fatal("loading config failed reading the config file '" + configFile + "'", err)
+    log.Fatal("loading config failed reading the config file '"+configFile+"'", err)
   }
   err = json.Unmarshal([]byte(jsonText), &Config)
   if err != nil {
@@ -158,7 +162,7 @@ func init() {
 }
 
 type Handler struct {
-  Func func(chan Event, chan Event)
-  Chan chan Event
+  Func   func(chan Event, chan Event)
+  Chan   chan Event
   Events map[EventCode]int
 }

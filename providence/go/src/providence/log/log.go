@@ -22,6 +22,7 @@ import (
 )
 
 type LogLevel int
+
 const (
   LEVEL_ERROR LogLevel = iota
   LEVEL_WARNING
@@ -30,6 +31,7 @@ const (
 )
 
 var currentLevel LogLevel = LEVEL_STATUS
+
 func SetLogLevel(newLevel LogLevel) {
   _, ok := levelMap[newLevel]
   if !ok {
@@ -40,7 +42,7 @@ func SetLogLevel(newLevel LogLevel) {
 }
 
 func SetLogFile(fileName string) {
-  if f, err := os.OpenFile(fileName, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0660); err == nil {
+  if f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0660); err == nil {
     fmt.Println("Directing log to " + fileName + ".")
     log.SetOutput(f)
   } else {
@@ -49,10 +51,10 @@ func SetLogFile(fileName string) {
 }
 
 var levelMap map[LogLevel]string = map[LogLevel]string{
-  LEVEL_ERROR: "ERROR",
+  LEVEL_ERROR:   "ERROR",
   LEVEL_WARNING: "WARNING",
-  LEVEL_STATUS: "STATUS",
-  LEVEL_DEBUG: "DEBUG",
+  LEVEL_STATUS:  "STATUS",
+  LEVEL_DEBUG:   "DEBUG",
 }
 
 func doLog(level LogLevel, component string, extras ...interface{}) {

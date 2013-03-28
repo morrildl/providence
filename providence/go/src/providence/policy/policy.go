@@ -25,11 +25,12 @@ import (
 )
 
 type timeWindow struct {
-  Hour int
-  Minute int
+  Hour     int
+  Minute   int
   Duration time.Duration
   Weekdays []time.Weekday
 }
+
 /* Parse string times & durations from config into a struct. */
 func parseExclusionIntervals() []timeWindow {
   windows := []timeWindow{}
@@ -45,8 +46,8 @@ func parseExclusionIntervals() []timeWindow {
       continue
     }
     windows = append(windows, timeWindow{
-      Hour: providedStart.Hour(),
-      Minute: providedStart.Minute(),
+      Hour:     providedStart.Hour(),
+      Minute:   providedStart.Minute(),
       Duration: duration,
       Weekdays: w.DaysOfWeek})
   }
@@ -72,7 +73,7 @@ func GetId() string {
 func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
   // local structs used in synthesizing human-meaningful events from raw events
   type ajarRuleState struct {
-    when time.Time
+    when     time.Time
     lastSend time.Duration
   }
 
@@ -122,16 +123,16 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
           }
         }
         if !inWindow {
-          outgoing <- common.Event{Which:e.Which, Action:common.ANOMALY, When:now, Id:GetId()}
+          outgoing <- common.Event{Which: e.Which, Action: common.ANOMALY, When: now, Id: GetId()}
         }
       }
 
-    case <- ticker:
+    case <-ticker:
       // once per second, check whether anything is (still) Ajar & (re)transmit if it's time to
       for which, last := range lastTrips {
         if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.lastSend {
           last.lastSend += resendFrequency
-          outgoing <- common.Event{Which:common.Sensors[which], Action:common.AJAR, When:time.Now(), Id:GetId()}
+          outgoing <- common.Event{Which: common.Sensors[which], Action: common.AJAR, When: time.Now(), Id: GetId()}
         }
       }
     }

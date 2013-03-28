@@ -30,20 +30,20 @@ import (
 )
 
 type ShareUrlRequest struct {
-  Url string
+  Url  string
   Skip []string
 }
 
 type payload struct {
-  EventCode string
-  EventId string
-  EventName string
-  WhichId string
-  WhichName string
-  SensorType string
+  EventCode      string
+  EventId        string
+  EventName      string
+  WhichId        string
+  WhichName      string
+  SensorType     string
   SensorTypeName string
-  When time.Time
-  Url string
+  When           time.Time
+  Url            string
 }
 type request struct {
   data payload
@@ -53,31 +53,31 @@ type request struct {
 func startTransmitter() (chan request, chan db.RegIdUpdate) {
   type gcmRequest struct {
     RegistrationIds []string `json:"registration_ids"`
-    Data payload `json:"data"`
+    Data            payload  `json:"data"`
   }
   type gcmResponse struct {
-    MulticastId uint64 `json:"multicast_id"`
-    Success int `json:"success"`
-    Failure int `json:"failure"`
-    CanonicalIds int `json:"canonical_ids"`
-    Results []struct {
-      MessageId string `json:"message_id"`
+    MulticastId  uint64 `json:"multicast_id"`
+    Success      int    `json:"success"`
+    Failure      int    `json:"failure"`
+    CanonicalIds int    `json:"canonical_ids"`
+    Results      []struct {
+      MessageId      string `json:"message_id"`
       RegistrationId string `json:"registration_id"`
-      Error string `json:"error"`
+      Error          string `json:"error"`
     } `json:"results"`
   }
 
   // define some constants and structs used only for JSON data formatting
   // & communication with GCM
   const (
-    GCM_URL = "https://android.googleapis.com/gcm/send"
+    GCM_URL      = "https://android.googleapis.com/gcm/send"
     GCM_MIMETYPE = "application/json"
   )
 
   requestSource := make(chan request, 10)
   regIdUpdateSink := make(chan db.RegIdUpdate, 10)
 
-  go func () {
+  go func() {
     for {
       select {
       case req := <-requestSource:
@@ -106,7 +106,7 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
           log.Error("gcm.transmitter", "Failed to create GCM HTTP request", err)
           break
         }
-        httpReq.Header.Add("Authorization", "key=" + common.Config.GCMOAuthToken)
+        httpReq.Header.Add("Authorization", "key="+common.Config.GCMOAuthToken)
         httpReq.Header.Add("Content-Type", GCM_MIMETYPE)
         client := &http.Client{}
         httpResp, err := client.Do(httpReq)
