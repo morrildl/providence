@@ -1,4 +1,4 @@
-	/* Copyright © 2012 Dan Morrill
+/* Copyright © 2012 Dan Morrill
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,148 +38,141 @@ import android.widget.Toast;
 import com.google.android.gcm.GCMRegistrar;
 
 import dude.morrildl.providence.gcm.GCMIntentService;
-import dude.morrildl.providence.util.Config;
-import dude.morrildl.providence.util.Network;
-import dude.morrildl.providence.util.OAuthException;
 
 public class PanopticonActivity extends Activity /*
-												 * implements
-												 * ActionBar.OnNavigationListener
-												 */{
-	private EventDetailsFragment eventDetailsFragment = null;
-	private EventHistoryFragment eventHistoryFragment = null;
-	private Network networkUtil;
+                                                  * implements
+                                                  * ActionBar.OnNavigationListener
+                                                  */{
+    class ServerRegisterTask extends AsyncTask<String, Integer, String> {
+        private Context context;
 
-	/** Called when the activity is first created. */
-	@Override
-	public void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.main);
-		FragmentManager fm = getFragmentManager();
-		FragmentTransaction ft = fm.beginTransaction();
-		eventDetailsFragment = new EventDetailsFragment();
-		eventHistoryFragment = new EventHistoryFragment();
-		ft.add(R.id.main_container, eventHistoryFragment);
-		ft.add(R.id.main_container, eventDetailsFragment);
-		ft.show(eventHistoryFragment).hide(eventDetailsFragment);
-		ft.commit();
+        @SuppressWarnings("unused")
+        private ServerRegisterTask() {
+        }
 
-		Config.load(this);
+        public ServerRegisterTask(Context context) {
+            this.context = context;
+        }
 
-		GCMRegistrar.checkDevice(this);
-		GCMRegistrar.checkManifest(this);
-		String regId = GCMRegistrar.getRegistrationId(this);
-		if (regId == null || "".equals(regId)) {
-			GCMRegistrar.register(this, GCMIntentService.SENDER_ID);
-		}
-		
-		try {
-			networkUtil = Network.getInstance(this);
-		} catch (KeyStoreException e) {
-			Log.e("PanopticonActivity.onCreate", "FATAL: exception loading the network utility");
-			throw new RuntimeException("exception loading the network utility", e);
-		}
-	}
+        @Override
+        protected String doInBackground(String... regIds) {
+            String regId = regIds[0];
+            URL url;
+            HttpsURLConnection cxn = null;
+            try {
+                url = new URL(stuff.getRegIdUrl());
+                cxn = (HttpsURLConnection) url.openConnection();
 
-	@Override
-	protected void onDestroy() {
-		super.onDestroy();
-		GCMRegistrar.onDestroy(this);
-	}
+                String token = stuff.fetchAuthToken();
+                cxn.addRequestProperty("X-OAuth-JWT", token);
 
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		MenuInflater inflater = getMenuInflater();
-		inflater.inflate(R.menu.providence, menu);
-		return true;
-	}
+                cxn.setSSLSocketFactory(stuff.getSslSocketFactory());
+                cxn.setDoInput(true);
+                cxn.setRequestMethod("POST");
+                OutputStream os = cxn.getOutputStream();
+                os.write(regId.getBytes());
+                os.close();
+                return new java.util.Scanner(cxn.getInputStream()).useDelimiter("\\A").next();
+            } catch (MalformedURLException e) {
+                Log.e("doInBackground", "URL error", e);
+            } catch (NotFoundException e) {
+                Log.e("doInBackground", "URL error", e);
+            } catch (IOException e) {
+                Log.e("doInBackground", "transmission error", e);
+            } catch (OAuthException e) {
+                Log.e("doInBackground", "failed fetching auth token", e);
+            } finally {
+                if (cxn != null)
+                    cxn.disconnect();
+            }
+            return "";
+        }
 
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		// Handle item selection
-		switch (item.getItemId()) {
-		case R.id.menu_test_1:
-			Toast.makeText(this, R.string.menu_test_1, Toast.LENGTH_SHORT)
-					.show();
-			return true;
-		case R.id.menu_test_2:
-			Toast.makeText(this, R.string.menu_test_2, Toast.LENGTH_SHORT)
-					.show();
-			return true;
-		default:
-			return super.onOptionsItemSelected(item);
-		}
-	}
+        @Override
+        protected void onPostExecute(String result) {
+            Log.e("onPostExecute result", "'" + result + "'");
+            if (result != null && "OK".equals(result.trim()))
+                GCMRegistrar.setRegisteredOnServer(context, true);
+        }
+    }
 
-	@Override
-	public void onResume() {
-		super.onResume();
-		String regId = GCMRegistrar.getRegistrationId(this);
-		if (regId != null && !"".equals(regId)) {
-			if (!GCMRegistrar.isRegisteredOnServer(this)) {
-				new ServerRegisterTask(this).execute(regId);
-			}
-		}
-	}
+    private EventDetailsFragment eventDetailsFragment = null;
+    private EventHistoryFragment eventHistoryFragment = null;
 
-	class ServerRegisterTask extends AsyncTask<String, Integer, String> {
-		private Context context;
+    private Stuff stuff;
 
-		@SuppressWarnings("unused")
-		private ServerRegisterTask() {
-		}
+    /** Called when the activity is first created. */
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.main);
+        FragmentManager fm = getFragmentManager();
+        FragmentTransaction ft = fm.beginTransaction();
+        eventDetailsFragment = new EventDetailsFragment();
+        eventHistoryFragment = new EventHistoryFragment();
+        ft.add(R.id.main_container, eventHistoryFragment);
+        ft.add(R.id.main_container, eventDetailsFragment);
+        ft.show(eventHistoryFragment).hide(eventDetailsFragment);
+        ft.commit();
 
-		public ServerRegisterTask(Context context) {
-			this.context = context;
-		}
+        GCMRegistrar.checkDevice(this);
+        GCMRegistrar.checkManifest(this);
+        String regId = GCMRegistrar.getRegistrationId(this);
+        if (regId == null || "".equals(regId)) {
+            GCMRegistrar.register(this, GCMIntentService.SENDER_ID);
+        }
 
-		@Override
-		protected String doInBackground(String... regIds) {
-			String regId = regIds[0];
-			URL url;
-			HttpsURLConnection cxn = null;
-			try {
-				url = new URL(Config.REGID_URL);
-				cxn = (HttpsURLConnection) url.openConnection();
+        try {
+            stuff = Stuff.getInstance(this);
+        } catch (KeyStoreException e) {
+            Log.e("PanopticonActivity.onCreate", "FATAL: exception loading the network utility");
+            throw new RuntimeException("exception loading the network utility", e);
+        }
+    }
 
-				String token = networkUtil.getAuthToken();
-				cxn.addRequestProperty("X-OAuth-JWT", token);
-				
-				cxn.setSSLSocketFactory(networkUtil.getSslSocketFactory());
-				cxn.setDoInput(true);
-				cxn.setRequestMethod("POST");
-				OutputStream os = cxn.getOutputStream();
-				os.write(regId.getBytes());
-				os.close();
-				return new java.util.Scanner(cxn.getInputStream())
-						.useDelimiter("\\A").next();
-			} catch (MalformedURLException e) {
-				Log.e("doInBackground", "URL error", e);
-			} catch (NotFoundException e) {
-				Log.e("doInBackground", "URL error", e);
-			} catch (IOException e) {
-				Log.e("doInBackground", "transmission error", e);
-			} catch (OAuthException e) {
-				Log.e("doInBackground", "failed fetching auth token", e);
-			} finally {
-				if (cxn != null)
-					cxn.disconnect();
-			}
-			return "";
-		}
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.providence, menu);
+        return true;
+    }
 
-		@Override
-		protected void onPostExecute(String result) {
-			Log.e("onPostExecute result", "'" + result + "'");
-			if (result != null && "OK".equals(result.trim()))
-				GCMRegistrar.setRegisteredOnServer(context, true);
-		}
-	}
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        GCMRegistrar.onDestroy(this);
+    }
 
-	public void showDetailsFragment(long id) {
-		eventDetailsFragment.setId(id);
-		FragmentManager fm = getFragmentManager();
-		fm.beginTransaction().hide(eventHistoryFragment)
-				.show(eventDetailsFragment).addToBackStack(null).commit();
-	}
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle item selection
+        switch (item.getItemId()) {
+        case R.id.menu_test_1:
+            Toast.makeText(this, R.string.menu_test_1, Toast.LENGTH_SHORT).show();
+            return true;
+        case R.id.menu_test_2:
+            Toast.makeText(this, R.string.menu_test_2, Toast.LENGTH_SHORT).show();
+            return true;
+        default:
+            return super.onOptionsItemSelected(item);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        String regId = GCMRegistrar.getRegistrationId(this);
+        if (regId != null && !"".equals(regId)) {
+            if (!GCMRegistrar.isRegisteredOnServer(this)) {
+                new ServerRegisterTask(this).execute(regId);
+            }
+        }
+    }
+
+    public void showDetailsFragment(long id) {
+        eventDetailsFragment.setId(id);
+        FragmentManager fm = getFragmentManager();
+        fm.beginTransaction().hide(eventHistoryFragment).show(eventDetailsFragment)
+                .addToBackStack(null).commit();
+    }
 }

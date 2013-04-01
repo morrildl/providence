@@ -40,28 +40,6 @@ public class EventHistoryFragment extends ListFragment {
 	private Cursor c;
 	private SQLiteDatabase db;
 
-	@Override
-	public View onCreateView(LayoutInflater inflater, ViewGroup container,
-			Bundle savedInstanceState) {
-		return inflater.inflate(R.layout.event_history_fragment, container,
-				false);
-	}
-
-	public void onResume() {
-		super.onResume();
-		onHiddenChanged(false);
-	}
-
-	private String getTimeFrom(String timestamp) throws ParseException {
-		SimpleDateFormat sdf = new SimpleDateFormat(
-				"yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
-		Date parsedTs = sdf.parse(timestamp);
-
-		DateFormat df = SimpleDateFormat
-				.getTimeInstance(SimpleDateFormat.MEDIUM);
-		return df.format(parsedTs);
-	}
-
 	private String getConditionalDateFrom(String timestamp)
 			throws ParseException {
 		SimpleDateFormat sdf = new SimpleDateFormat(
@@ -81,6 +59,23 @@ public class EventHistoryFragment extends ListFragment {
 		DateFormat df = SimpleDateFormat
 				.getDateInstance(SimpleDateFormat.MEDIUM);
 		return df.format(parsedTs);
+	}
+
+	private String getTimeFrom(String timestamp) throws ParseException {
+		SimpleDateFormat sdf = new SimpleDateFormat(
+				"yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
+		Date parsedTs = sdf.parse(timestamp);
+
+		DateFormat df = SimpleDateFormat
+				.getTimeInstance(SimpleDateFormat.MEDIUM);
+		return df.format(parsedTs);
+	}
+
+	@Override
+	public View onCreateView(LayoutInflater inflater, ViewGroup container,
+			Bundle savedInstanceState) {
+		return inflater.inflate(R.layout.event_history_fragment, container,
+				false);
 	}
 
 	@Override
@@ -180,5 +175,10 @@ public class EventHistoryFragment extends ListFragment {
 			db.close();
 		} catch (Throwable t) {
 		}
+	}
+
+	public void onResume() {
+		super.onResume();
+		onHiddenChanged(false);
 	}
 }
