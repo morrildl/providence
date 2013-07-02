@@ -47,15 +47,15 @@ func startCertFetcher() {
       log.Debug("server.certFetcher", "Updating validCerts map")
 
       res, err := http.Get(common.Config.GoogleOAuthCertsURL)
-      if err != nil {
-        log.Warn("server.certFetcher", "failure fetching GoogleOAuthCertsURL", err)
-        return
-      }
-      dec := json.NewDecoder(res.Body)
-      err = dec.Decode(&validCerts)
-      log.Debug("server.certFetcher", validCerts)
+      if err == nil {
+        dec := json.NewDecoder(res.Body)
+        err = dec.Decode(&validCerts)
+        log.Debug("server.certFetcher", validCerts)
 
-      res.Body.Close()
+        res.Body.Close()
+      } else {
+        log.Warn("server.certFetcher", "failure fetching GoogleOAuthCertsURL", err)
+      }
 
       <-ticker
     }
@@ -137,6 +137,7 @@ func checkAuth(writer http.ResponseWriter, req *http.Request) bool {
   email, err := verifyToken(token)
   if err != nil {
     log.Warn("server.checkAuth", "auth token is invalid")
+    log.Warn("server.checkAuth", err)
     log.Debug("server.checkAuth", token)
     writer.WriteHeader(http.StatusForbidden)
     io.WriteString(writer, "NO\n")
