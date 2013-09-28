@@ -4,7 +4,9 @@
     android:versionCode="1"
     android:versionName="1.0" >
 
-    <uses-sdk android:minSdkVersion="15" android:targetSdkVersion="99"/>
+    <uses-sdk
+        android:minSdkVersion="15"
+        android:targetSdkVersion="99" />
 
     <permission
         android:name="dude.morrildl.providence.permission.C2D_MESSAGE"
@@ -16,12 +18,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
 
     <application
+        android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name"
-        android:allowBackup="false">
+        android:label="@string/app_name" >
         <activity
             android:name=".PanopticonActivity"
             android:label="@string/app_name"

@@ -68,17 +68,20 @@ public class GCMIntentService extends GCMBaseIntentService {
                             .getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
                     File vbofPath = new File(f.getCanonicalPath() + "/VBOF");
                     String fileId = "" + System.currentTimeMillis();
-                    File vbofFile = new File(vbofPath.getCanonicalPath() + "/" + fileId);
+                    File vbofFile = new File(vbofPath.getCanonicalPath() + "/"
+                            + fileId);
                     if (!vbofPath.exists()) {
                         vbofPath.mkdirs();
                     } else {
                         if (!vbofPath.isDirectory()) {
-                            Log.e("GCMIntentService.doInBackground", "VBOF path not a directory: "
-                                    + vbofPath.getCanonicalPath());
+                            Log.e("GCMIntentService.doInBackground",
+                                    "VBOF path not a directory: "
+                                            + vbofPath.getCanonicalPath());
                             return;
                         }
                     }
-                    FileOutputStream outputStream = new FileOutputStream(vbofFile);
+                    FileOutputStream outputStream = new FileOutputStream(
+                            vbofFile);
                     outputStream.write(response.bytes);
                     outputStream.close();
 
@@ -90,7 +93,8 @@ public class GCMIntentService extends GCMBaseIntentService {
                     ContentValues values = new ContentValues(7);
                     if (imageTitle != null && !"".equals(imageTitle)) {
                         values.put(MediaStore.Images.Media.TITLE, imageTitle);
-                        values.put(MediaStore.Images.Media.DESCRIPTION, imageTitle);
+                        values.put(MediaStore.Images.Media.DESCRIPTION,
+                                imageTitle);
                     } else {
                         values.put(MediaStore.Images.Media.TITLE, fileId);
                     }
@@ -98,28 +102,35 @@ public class GCMIntentService extends GCMBaseIntentService {
                     if (mimeType != null && !"".equals(mimeType)) {
                         values.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
                     }
-                    values.put(MediaStore.Images.Media.BUCKET_ID, vbofFile.hashCode());
+                    values.put(MediaStore.Images.Media.BUCKET_ID,
+                            vbofFile.hashCode());
                     values.put("_data", vbofFile.getCanonicalPath());
                     Uri target = getContentResolver().insert(
-                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                            values);
 
                     // fire off a view Intent for the newly-written URL
                     Intent i = new Intent(Intent.ACTION_VIEW);
                     i.setData(target);
-                    PendingIntent pi = PendingIntent.getActivity(context, 43, i, 0);
+                    PendingIntent pi = PendingIntent.getActivity(context, 43,
+                            i, 0);
                     Notification n = (new Notification.Builder(context))
-                            .setContentTitle(context.getResources().getString(R.string.vbof_notif))
+                            .setContentTitle(
+                                    context.getResources().getString(
+                                            R.string.vbof_notif))
                             .setContentText(imageTitle).setContentIntent(pi)
-                            .setSmallIcon(R.drawable.ic_stat_event).setAutoCancel(true)
-                            .getNotification();
-                    ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE))
+                            .setSmallIcon(R.drawable.ic_stat_event)
+                            .setAutoCancel(true).build();
+                    ((NotificationManager) context
+                            .getSystemService(Context.NOTIFICATION_SERVICE))
                             .notify(43, n);
                 } catch (MalformedURLException e) {
                     Log.e("FetchVbofTask.doInBackground", "URL error", e);
                 } catch (NotFoundException e) {
                     Log.e("FetchVbofTask.doInBackground", "URL error", e);
                 } catch (IOException e) {
-                    Log.e("FetchVbofTask.doInBackground", "transmission error", e);
+                    Log.e("FetchVbofTask.doInBackground", "transmission error",
+                            e);
                 } catch (ClassCastException e) {
                     Log.w("FetchVbofTask.doInBackground",
                             "did server send us the wrong kind of URL?", e);
@@ -127,7 +138,8 @@ public class GCMIntentService extends GCMBaseIntentService {
             }
         };
 
-        ByteArrayRequest r = new ByteArrayRequest(Method.GET, url, listener, null);
+        ByteArrayRequest r = new ByteArrayRequest(Method.GET, url, listener,
+                null);
         try {
             Stuff.getInstance(context).getRequestQueue().add(r);
         } catch (KeyStoreException e) {
@@ -149,7 +161,8 @@ public class GCMIntentService extends GCMBaseIntentService {
         }
 
         // Otherwise it's a security event
-        boolean isMotion = (Integer.parseInt(intent.getStringExtra("SensorType")) == 2);
+        boolean isMotion = (Integer.parseInt(intent
+                .getStringExtra("SensorType")) == 2);
         boolean notifyOnMotion = false;
         boolean skipMotionUpdate = false;
 
@@ -171,13 +184,14 @@ public class GCMIntentService extends GCMBaseIntentService {
 
         // filter out motion events, unless it's been a long time since the last
         if (isMotion) {
-            Cursor c = db.query("last_motion", new String[] { "ts" }, "which = ?",
-                    new String[] { which }, null, null, null);
+            Cursor c = db.query("last_motion", new String[] { "ts" },
+                    "which = ?", new String[] { which }, null, null, null);
             if (c.moveToFirst()) { // i.e. we have heard from this sensor before
                 Calendar lastMotion = Calendar.getInstance();
                 Calendar currentMotion = Calendar.getInstance();
                 try {
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy'-'MM'-'dd'T'HH:mm:ss");
+                    SimpleDateFormat sdf = new SimpleDateFormat(
+                            "yyyy'-'MM'-'dd'T'HH:mm:ss");
                     lastMotion.setTime(sdf.parse(c.getString(0)));
                     currentMotion.setTime(sdf.parse(ts));
 
@@ -199,7 +213,8 @@ public class GCMIntentService extends GCMBaseIntentService {
             }
             // update or insert the timestamp, unless message was out of order
             if (!skipMotionUpdate) {
-                db.execSQL(OpenHelper.REPLACE_LAST_MOTION, new Object[] { which, ts });
+                db.execSQL(OpenHelper.REPLACE_LAST_MOTION, new Object[] {
+                        which, ts });
             }
         }
 
@@ -213,16 +228,20 @@ public class GCMIntentService extends GCMBaseIntentService {
             Notification n = (new Notification.Builder(context))
                     .setContentTitle(
                             intent.getStringExtra("WhichName") + " "
-                                    + intent.getStringExtra("EventName")).setContentIntent(pi)
-                    .setSmallIcon(R.drawable.ic_stat_event).setAutoCancel(true).getNotification();
-            ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE)).notify(
-                    42, n);
+                                    + intent.getStringExtra("EventName"))
+                    .setContentIntent(pi)
+                    .setSmallIcon(R.drawable.ic_stat_event).setAutoCancel(true)
+                    .build();
+            ((NotificationManager) context
+                    .getSystemService(Context.NOTIFICATION_SERVICE)).notify(42,
+                    n);
         }
     }
 
     @Override
     protected void onRegistered(Context context, String regId) {
-        context.getSharedPreferences("main", 0).edit().putString("regid", regId).commit();
+        context.getSharedPreferences("main", 0).edit()
+                .putString("regid", regId).commit();
     }
 
     @Override

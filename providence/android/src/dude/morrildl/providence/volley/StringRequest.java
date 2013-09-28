@@ -7,9 +7,9 @@ import com.android.volley.Response.ErrorListener;
 import com.android.volley.Response.Listener;
 
 public class StringRequest extends com.android.volley.toolbox.StringRequest {
-    private HashMap<String, String> headers = new HashMap<String, String>();
     private String body = "";
     private String contentType = "text/plain";
+    private HashMap<String, String> headers = new HashMap<String, String>();
 
     public StringRequest(int method, String url, Listener<String> listener,
             ErrorListener errorListener) {

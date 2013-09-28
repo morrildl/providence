@@ -72,7 +72,8 @@ public class PanopticonActivity extends Activity /*
                 OutputStream os = cxn.getOutputStream();
                 os.write(regId.getBytes());
                 os.close();
-                return new java.util.Scanner(cxn.getInputStream()).useDelimiter("\\A").next();
+                return new java.util.Scanner(cxn.getInputStream())
+                        .useDelimiter("\\A").next();
             } catch (MalformedURLException e) {
                 Log.e("doInBackground", "URL error", e);
             } catch (NotFoundException e) {
@@ -96,7 +97,6 @@ public class PanopticonActivity extends Activity /*
         }
     }
 
-    private EventDetailsFragment eventDetailsFragment = null;
     private EventHistoryFragment eventHistoryFragment = null;
 
     private Stuff stuff;
@@ -108,12 +108,9 @@ public class PanopticonActivity extends Activity /*
         setContentView(R.layout.main);
         FragmentManager fm = getFragmentManager();
         FragmentTransaction ft = fm.beginTransaction();
-        eventDetailsFragment = new EventDetailsFragment();
         eventHistoryFragment = new EventHistoryFragment();
-        ft.add(R.id.main_container, eventHistoryFragment);
-        ft.add(R.id.main_container, eventDetailsFragment);
-        ft.show(eventHistoryFragment).hide(eventDetailsFragment);
-        ft.commit();
+        ft.add(R.id.main_container, eventHistoryFragment)
+                .show(eventHistoryFragment).commit();
 
         GCMRegistrar.checkDevice(this);
         GCMRegistrar.checkManifest(this);
@@ -125,8 +122,10 @@ public class PanopticonActivity extends Activity /*
         try {
             stuff = Stuff.getInstance(this);
         } catch (KeyStoreException e) {
-            Log.e("PanopticonActivity.onCreate", "FATAL: exception loading the network utility");
-            throw new RuntimeException("exception loading the network utility", e);
+            Log.e("PanopticonActivity.onCreate",
+                    "FATAL: exception loading the network utility");
+            throw new RuntimeException("exception loading the network utility",
+                    e);
         }
     }
 
@@ -148,10 +147,12 @@ public class PanopticonActivity extends Activity /*
         // Handle item selection
         switch (item.getItemId()) {
         case R.id.menu_test_1:
-            Toast.makeText(this, R.string.menu_test_1, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.menu_test_1, Toast.LENGTH_SHORT)
+                    .show();
             return true;
         case R.id.menu_test_2:
-            Toast.makeText(this, R.string.menu_test_2, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.menu_test_2, Toast.LENGTH_SHORT)
+                    .show();
             return true;
         default:
             return super.onOptionsItemSelected(item);
@@ -167,12 +168,5 @@ public class PanopticonActivity extends Activity /*
                 new ServerRegisterTask(this).execute(regId);
             }
         }
-    }
-
-    public void showDetailsFragment(long id) {
-        eventDetailsFragment.setId(id);
-        FragmentManager fm = getFragmentManager();
-        fm.beginTransaction().hide(eventHistoryFragment).show(eventDetailsFragment)
-                .addToBackStack(null).commit();
     }
 }

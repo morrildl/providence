@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Floater" parent="@android:style/TextAppearance">
+        <item name="android:textColor">#646464</item>
+    </style>
+
+    <color name="badge_bg">#ffffff</color>
+    <color name="badge_text">#646464</color>
+
+    <style name="HoloLightActionBar" parent="android:Theme.Holo">
+        
+    </style>
+
+</resources>

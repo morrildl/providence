@@ -14,6 +14,7 @@
  */
 package dude.morrildl.providence;
 
+import java.security.KeyStoreException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -26,159 +27,122 @@ import android.app.ListFragment;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
-import android.support.v4.widget.SimpleCursorAdapter;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
-import dude.morrildl.providence.R;
 import dude.morrildl.providence.db.OpenHelper;
+import dude.morrildl.providence.view.PanopticonCursorAdapter;
 
 public class EventHistoryFragment extends ListFragment {
-	private Cursor c;
-	private SQLiteDatabase db;
+    private Cursor c;
+    private SQLiteDatabase db;
 
-	private String getConditionalDateFrom(String timestamp)
-			throws ParseException {
-		SimpleDateFormat sdf = new SimpleDateFormat(
-				"yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
-		Date parsedTs = sdf.parse(timestamp);
+    private String getConditionalDateFrom(String timestamp)
+            throws ParseException {
+        SimpleDateFormat sdf = new SimpleDateFormat(
+                "yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
+        Date parsedTs = sdf.parse(timestamp);
 
-		Calendar today = Calendar.getInstance(TimeZone.getDefault());
-		Calendar midnight = Calendar.getInstance(TimeZone.getDefault());
-		midnight.clear();
-		midnight.set(today.get(Calendar.YEAR), today.get(Calendar.MONTH),
-				today.get(Calendar.DATE));
+        Calendar today = Calendar.getInstance(TimeZone.getDefault());
+        Calendar midnight = Calendar.getInstance(TimeZone.getDefault());
+        midnight.clear();
+        midnight.set(today.get(Calendar.YEAR), today.get(Calendar.MONTH),
+                today.get(Calendar.DATE));
 
-		if (parsedTs.after(midnight.getTime())) {
-			return "";
-		}
+        if (parsedTs.after(midnight.getTime())) {
+            return "";
+        }
 
-		DateFormat df = SimpleDateFormat
-				.getDateInstance(SimpleDateFormat.MEDIUM);
-		return df.format(parsedTs);
-	}
+        DateFormat df = SimpleDateFormat
+                .getDateInstance(SimpleDateFormat.MEDIUM);
+        return df.format(parsedTs);
+    }
 
-	private String getTimeFrom(String timestamp) throws ParseException {
-		SimpleDateFormat sdf = new SimpleDateFormat(
-				"yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
-		Date parsedTs = sdf.parse(timestamp);
+    private String getTimeFrom(String timestamp) throws ParseException {
+        SimpleDateFormat sdf = new SimpleDateFormat(
+                "yyyy'-'MM'-'dd'T'HH:mm:ss", Locale.US);
+        Date parsedTs = sdf.parse(timestamp);
 
-		DateFormat df = SimpleDateFormat
-				.getTimeInstance(SimpleDateFormat.MEDIUM);
-		return df.format(parsedTs);
-	}
+        DateFormat df = SimpleDateFormat
+                .getTimeInstance(SimpleDateFormat.MEDIUM);
+        return df.format(parsedTs);
+    }
 
-	@Override
-	public View onCreateView(LayoutInflater inflater, ViewGroup container,
-			Bundle savedInstanceState) {
-		return inflater.inflate(R.layout.event_history_fragment, container,
-				false);
-	}
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+            Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.event_history_fragment, container,
+                false);
+    }
 
-	@Override
-	public void onHiddenChanged(boolean hidden) {
-		super.onHiddenChanged(hidden);
-		if (!hidden) {
-			OpenHelper helper = new OpenHelper(getActivity());
-			db = helper.getReadableDatabase();
-			c = db.query("events",
-					new String[] { "which", "type", "event",
-							"event as image_event", "ts", "rowid as _id",
-							"ts as ts2" }, "type <> 'Motion Sensor'", null,
-					null, null, "ts desc");
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        if (!hidden) {
+            Stuff stuff;
+            try {
+                stuff = Stuff.getInstance(getActivity());
+            } catch (KeyStoreException e1) {
+                return;
+            }
+            OpenHelper helper = new OpenHelper(getActivity());
+            db = helper.getReadableDatabase();
+            c = db.query("events", new String[] { "which", "type", "event",
+                    "ts", "rowid as _id", "eventid" },
+                    "type <> 'Motion Sensor'", null, null, null, "ts desc");
 
-			SimpleCursorAdapter adapter = new SimpleCursorAdapter(
-					getActivity(), R.layout.event_history_row, c, new String[] {
-							"which", "event", "image_event", "ts", "ts2" },
-					new int[] { R.id.event_which, R.id.event_action,
-							R.id.indicator_image, R.id.event_ts,
-							R.id.event_date }, 0);
-			adapter.setViewBinder(new SimpleCursorAdapter.ViewBinder() {
-				@Override
-				public boolean setViewValue(View view, Cursor c, int column) {
-					if (column == 6) {
-						try {
-							((TextView) view).setText(getConditionalDateFrom(c
-									.getString(column)));
-						} catch (ParseException e) {
-							return false;
-						}
-						return true;
-					} else if (column == 4) {
-						try {
-							((TextView) view).setText(getTimeFrom(c
-									.getString(column)));
-						} catch (ParseException e) {
-							return false;
-						}
-						return true;
-					} else if (column == 3) {
-						String type = c.getString(column);
-						int resource = 0;
-						if ("Unexpectedly Opened".equals(type)) {
-							resource = R.drawable.ic_event_door;
-						} else if ("Detected Motion".equals(type)) {
-							resource = R.drawable.ic_event_motion;
-						} else if ("Ajar".equals(type)) {
-							resource = R.drawable.ic_event_ajar;
-						}
-						((ImageView) view).setImageResource(resource);
-						return true;
-					}
-					return false;
-				}
-			});
-			setListAdapter(adapter);
+            setListAdapter(new PanopticonCursorAdapter(getActivity(), stuff, c,
+                    0));
 
-			Cursor tmpCursor = db.query("last_motion",
-					new String[] { "max(ts)" }, null, null, null, null, null);
-			TextView tv = (TextView) getView().findViewById(
-					R.id.motion_status_text);
-			if (tmpCursor.moveToFirst()) {
-				try {
-					String timestamp = tmpCursor.getString(0);
-					if (timestamp != null) {
-						String timeString = getTimeFrom(timestamp);
-						String dateString = getConditionalDateFrom(timestamp);
+            Cursor tmpCursor = db.query("last_motion",
+                    new String[] { "max(ts)" }, null, null, null, null, null);
+            TextView tv = (TextView) getView().findViewById(
+                    R.id.motion_status_text);
+            if (tv != null) {
+                if (tmpCursor.moveToFirst()) {
+                    try {
+                        String timestamp = tmpCursor.getString(0);
+                        if (timestamp != null) {
+                            String timeString = getTimeFrom(timestamp);
+                            String dateString = getConditionalDateFrom(timestamp);
 
-						if (!"".equals(dateString)) {
-							timeString = timeString + " on " + dateString;
-						}
-						
-						tv.setText("Last motion detected at " + timeString);
-						tv.setVisibility(View.VISIBLE);
-					} else {
-						tv.setVisibility(View.GONE);
-					}
-				} catch (ParseException e) {
-					tv.setVisibility(View.GONE);
-				}
-			} else {
-				tv.setVisibility(View.GONE);
-			}
-		}
-	}
+                            if (!"".equals(dateString)) {
+                                timeString = timeString + " on " + dateString;
+                            }
 
-	@Override
-	public void onListItemClick(ListView l, View v, int position, long id) {
-		super.onListItemClick(l, v, position, id);
-		((PanopticonActivity) getActivity()).showDetailsFragment(id);
-	}
+                            tv.setText("Last motion detected at " + timeString);
+                            tv.setVisibility(View.VISIBLE);
+                        } else {
+                            tv.setVisibility(View.GONE);
+                        }
+                    } catch (ParseException e) {
+                        tv.setVisibility(View.GONE);
+                    }
+                } else {
+                    tv.setVisibility(View.GONE);
+                }
+            }
+        }
+    }
 
-	public void onPause() {
-		super.onPause();
-		try {
-			c.close();
-			db.close();
-		} catch (Throwable t) {
-		}
-	}
+    @Override
+    public void onListItemClick(ListView l, View v, int position, long id) {
+        super.onListItemClick(l, v, position, id);
+    }
 
-	public void onResume() {
-		super.onResume();
-		onHiddenChanged(false);
-	}
+    public void onPause() {
+        super.onPause();
+        try {
+            c.close();
+            db.close();
+        } catch (Throwable t) {
+        }
+    }
+
+    public void onResume() {
+        super.onResume();
+        onHiddenChanged(false);
+    }
 }
