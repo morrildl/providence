@@ -22,6 +22,7 @@ import (
   "net/http"
   "os"
   "path/filepath"
+  "sort"
   "strconv"
   "strings"
   "time"
@@ -260,7 +261,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     // The ID will have been sent to the app via GCM; this is how it pulls
     // photos, if any. This returns only the list, it does NOT return JPEG
     // data.
-    http.HandleFunc("/photos", func(writer http.ResponseWriter, req *http.Request) {
+    http.HandleFunc("/photos/", func(writer http.ResponseWriter, req *http.Request) {
       if !checkAuth(writer, req) {
         return
       }
@@ -270,9 +271,23 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         io.WriteString(writer, "FAIL")
       }
 
-      body, err := ioutil.ReadAll(req.Body)
-      if err != nil {
-        log.Warn("server.photos", "failure reading body in /photos", err)
+      log.Debug("server.photos", "servicing request for " + req.URL.Path)
+
+      var photoIDs string
+      chunks := strings.SplitN(req.URL.Path, "/", 3)[2:]
+      if len(chunks) > 0 && chunks[0] != "" {
+        photoIDs = chunks[0]
+      } else {
+        body, err := ioutil.ReadAll(req.Body)
+        if err != nil {
+          log.Warn("server.photos", "failure reading body in /photos", err)
+          doerr()
+          return
+        }
+        photoIDs = string(body)
+      }
+      if photoIDs == "" {
+        log.Warn("server.photos", "could not get IDs from path or body")
         doerr()
         return
       }
@@ -305,7 +320,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       }
 
       urlsById := make(map[string][]string)
-      for _, id := range strings.Split(string(body), "\n") {
+      for _, id := range strings.Split(photoIDs, "\n") {
         if len(id) == 0 {
           continue
         }
@@ -320,6 +335,10 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         urlsById[id] = urls
       }
 
+      for _, urls := range urlsById {
+        sort.Strings(urls)
+      }
+
       bodyStr, err := json.Marshal(urlsById)
       if err != nil {
         log.Error("server.photos", "could not marshal to JSON")
@@ -332,6 +351,8 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
 
       writer.Header().Add("Content-Type", "application/json")
       writer.Header().Add("Content-Length", strconv.Itoa(len(bodyStr)))
+      writer.Header().Add("Cache-control", "private,max-age=7776000")
+      writer.Header().Add("Expires", time.Now().Add(time.Hour*24*90).Format(time.RFC1123))
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, string(bodyStr))
     })
@@ -361,6 +382,8 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
         writer.Header().Add("X-Image-Title", message)
       }
       writer.Header().Add("Content-Length", strconv.Itoa(len(bytes)))
+      writer.Header().Add("Cache-control", "private,max-age=7776000")
+      writer.Header().Add("Expires", time.Now().Add(time.Hour*24*90).Format(time.RFC1123))
       io.WriteString(writer, string(bytes))
     }
 
@@ -398,6 +421,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       if !checkAuth(writer, req) {
         return
       }
+      log.Debug("server.photo", "request method: " + req.Method)
 
       fnames := strings.Split(req.URL.Path, "/")
       if len(fnames) != 3 {

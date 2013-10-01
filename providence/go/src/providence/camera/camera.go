@@ -104,7 +104,7 @@ func captureImage(url string, ids []string) {
   r := time.Now().UnixNano()
 
   for _, id := range ids {
-    fname := filepath.Join(common.Config.ImageDirectory, id+"-"+strconv.FormatInt(time.Now().Unix(), 10)+".jpg")
+    fname := filepath.Join(common.Config.ImageDirectory, id+"-"+time.Now().Format("20060102150405.00")+".jpg")
     file, err := os.Create(fname)
     if err != nil {
       log.Warn("camera.capture", "failed writing image contents for "+id)

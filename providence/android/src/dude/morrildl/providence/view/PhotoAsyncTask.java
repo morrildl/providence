@@ -74,7 +74,7 @@ class PhotoAsyncTask extends AsyncTask<String, Integer, String> {
         // server for a list of URLs of photos for the given eventId
         final RequestQueue q = stuff.getRequestQueue();
         StringRequest sr = new StringRequest(Method.POST,
-                stuff.getPhotosBase(), new Listener<String>() {
+                stuff.getPhotosBase() + eventId, new Listener<String>() {
                     @Override
                     public void onResponse(String response) {
                         // the response is actually a JSON array, so parse it
@@ -132,7 +132,6 @@ class PhotoAsyncTask extends AsyncTask<String, Integer, String> {
                 });
         sr.setShouldCache(true);
         sr.setHeader("X-OAuth-JWT", token);
-        sr.setBody(eventId);
         q.add(sr);
     }
 }
