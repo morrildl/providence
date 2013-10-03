@@ -33,6 +33,7 @@ import (
   "strconv"
   "strings"
   "time"
+  "net/url"
 
   "providence/common"
   plog "providence/log"
@@ -43,12 +44,14 @@ type GeneralConfig struct {
   Debug        bool
   DatabasePath string
   LogFile      string
+  QRGenURL     string
 }
 
 var General = GeneralConfig{
   Debug:        false,
   DatabasePath: "./providence.sqlite3",
   LogFile:      "./providence.log",
+  QRGenURL:     "http://qrfree.kaywa.com/?l=1&s=8&d=",
 }
 
 type ServerConfig struct {
@@ -129,22 +132,6 @@ var UserAuth = UserAuthConfig{
   GoogleAccountWhitelist: make([]string, 0),
 }
 
-type URLPathConfig struct {
-  RegID      string
-  Heartbeat  string
-  Recent     string
-  PhotoList  string
-  PhotoFetch string
-}
-
-var URLPath = URLPathConfig{
-  RegID:      "/regid",
-  Heartbeat:  "/heartbeat",
-  Recent:     "/recent",
-  PhotoList:  "/photos/",
-  PhotoFetch: "/photo/",
-}
-
 type PathType int
 
 const (
@@ -155,32 +142,22 @@ const (
   PATH_PHOTO
 )
 
-func GetURLFor(path PathType) string {
-  pathStr := map[PathType]string{
-    PATH_REGID:      URLPath.RegID,
-    PATH_HEARTBEAT:  URLPath.Heartbeat,
-    PATH_RECENT:     URLPath.Recent,
-    PATH_PHOTO_LIST: URLPath.PhotoList,
-    PATH_PHOTO:      URLPath.PhotoFetch,
-  }[path]
-  // make sure we don't end up with duplicate /-es in URLs
-  left := strings.TrimRight(Server.URLRoot, "/")
-  right := strings.TrimLeft(pathStr, "/")
-  return strings.Join([]string{left, right}, "/")
+type URLPathConfig struct {
+  RegID      string
+  Heartbeat  string
+  Recent     string
+  PhotoList  string
+  PhotoFetch string
+  QRConfig   string
 }
 
-/* Joins the indicated strings URL-style, i.e. separated by "/" and such that
- * there is exactly one "/" between joined segments.
- */
-func URLJoin(chunks ...string) string {
-  nChunks := len(chunks)
-  trimmed := make([]string, nChunks)
-  trimmed[0] = strings.TrimRight(chunks[0], "/")
-  for i, chunk := range chunks[1:nChunks] {
-    trimmed[i+1] = strings.TrimRight(strings.TrimLeft(chunk, "/"), "/")
-  }
-  trimmed[nChunks-1] = strings.TrimLeft(chunks[nChunks-1], "/")
-  return strings.Join(trimmed, "/")
+var URLPath = URLPathConfig{
+  RegID:      "/regid",
+  Heartbeat:  "/heartbeat",
+  Recent:     "/recent",
+  PhotoList:  "/photos/",
+  PhotoFetch: "/photo/",
+  QRConfig:   "/qrconfig",
 }
 
 func init() {
@@ -261,4 +238,67 @@ func init() {
   if cnt == 0 {
     log.Fatal("no sensor names configured")
   }
+}
+
+/* Returns the full URL (using URL/host as configured in config.json) for a
+ * particular URL path */
+func GetURLFor(path PathType) string {
+  pathStr := map[PathType]string{
+    PATH_REGID:      URLPath.RegID,
+    PATH_HEARTBEAT:  URLPath.Heartbeat,
+    PATH_RECENT:     URLPath.Recent,
+    PATH_PHOTO_LIST: URLPath.PhotoList,
+    PATH_PHOTO:      URLPath.PhotoFetch,
+  }[path]
+  // make sure we don't end up with duplicate /-es in URLs
+  left := strings.TrimRight(Server.URLRoot, "/")
+  right := strings.TrimLeft(pathStr, "/")
+  return strings.Join([]string{left, right}, "/")
+}
+
+/* Joins the indicated strings URL-style, i.e. separated by "/" and such that
+ * there is exactly one "/" between joined segments.
+ */
+func URLJoin(chunks ...string) string {
+  nChunks := len(chunks)
+  trimmed := make([]string, nChunks)
+  trimmed[0] = strings.TrimRight(chunks[0], "/")
+  for i, chunk := range chunks[1:nChunks] {
+    trimmed[i+1] = strings.TrimRight(strings.TrimLeft(chunk, "/"), "/")
+  }
+  trimmed[nChunks-1] = strings.TrimLeft(chunks[nChunks-1], "/")
+  return strings.Join(trimmed, "/")
+}
+
+/* Returns a string encoding all the config settings the Android app client
+ * needs, in the standard Java properties file format. */
+func GetClientConfig() (string, error) {
+  template := `OAUTH_AUDIENCE=%v
+REGID_URL=%v
+PHOTO_BASE=%v
+CANONICAL_SERVER_NAME=%v
+  `
+  serverUrl, err := url.Parse(Server.URLRoot)
+  if err != nil {
+    plog.Warn("config.GetClientConfig", "error parsing URLRoot?!", err)
+    return "", err
+  }
+  canonicalName := serverUrl.Host
+  colon := strings.Index(canonicalName, ":")
+  if colon == -1 {
+    canonicalName = canonicalName + ":-1"
+  }
+  populated := fmt.Sprintf(template, UserAuth.OAuthAudience, GetURLFor(PATH_REGID), GetURLFor(PATH_PHOTO_LIST), canonicalName)
+  return populated, nil
+}
+
+/* Returns a URL pointing to a QR code that encodes the config data as
+ * returned by GetClientConfig() */
+func GetClientConfigQR() (string, error) {
+  configText, err := GetClientConfig()
+  if err != nil {
+    return "", err
+  }
+  escapedText := url.QueryEscape(configText)
+  return General.QRGenURL + escapedText, nil
 }

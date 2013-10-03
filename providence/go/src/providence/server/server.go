@@ -17,6 +17,7 @@ package server
 import (
   "encoding/json"
   "errors"
+  "fmt"
   "io"
   "io/ioutil"
   "net/http"
@@ -166,7 +167,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     // registration ID handler; RESTful:
     // - POST = add reg ID(s) listed in body
     // - DELETE = discard reg ID(s) listed in body
-    http.HandleFunc("/regid", func(writer http.ResponseWriter, req *http.Request) {
+    http.HandleFunc(config.URLPath.RegID, func(writer http.ResponseWriter, req *http.Request) {
       log.Debug("server", "incoming request to /regid")
 
       if !checkAuth(writer, req) {
@@ -188,15 +189,32 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     })
 
     // heartbeat URL: always returns code=200 with message of "HI"
-    http.HandleFunc("/heartbeat", func(writer http.ResponseWriter, req *http.Request) {
+    http.HandleFunc(config.URLPath.Heartbeat, func(writer http.ResponseWriter, req *http.Request) {
       // unauthenticated; no call to checkAuth()
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, "HI\n")
     })
 
+    // setup URL: displays a QR code that stores config info; client can scan it to set up
+    http.HandleFunc(config.URLPath.QRConfig, func(writer http.ResponseWriter, req *http.Request) {
+      // unauthenticated; no call to checkAuth() -- this is our bootstrap
+      url, err := config.GetClientConfigQR()
+      if err != nil {
+        writer.WriteHeader(http.StatusInternalServerError)
+        io.WriteString(writer, "FAIL")
+        return
+      }
+      writer.WriteHeader(http.StatusOK)
+      writer.Header().Add("Content-Type", "text/html")
+      body := fmt.Sprintf(`<!DOCTYPE html><html><body><img src="%v"></body></html>`, url)
+      writer.Header().Add("Content-Length", strconv.Itoa(len(body)))
+      io.WriteString(writer, body)
+    })
+
+
     // return a list of the most recent 10 entries; intended for
     // new clients to get initial state
-    http.HandleFunc("/recent", func(writer http.ResponseWriter, req *http.Request) {
+    http.HandleFunc(config.URLPath.Recent, func(writer http.ResponseWriter, req *http.Request) {
       if !checkAuth(writer, req) {
         return
       }
@@ -209,7 +227,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     // The ID will have been sent to the app via GCM; this is how it pulls
     // photos, if any. This returns only the list, it does NOT return JPEG
     // data.
-    http.HandleFunc("/photos/", func(writer http.ResponseWriter, req *http.Request) {
+    http.HandleFunc(config.URLPath.PhotoList, func(writer http.ResponseWriter, req *http.Request) {
       if !checkAuth(writer, req) {
         return
       }
@@ -336,7 +354,7 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
     }
 
     // fetch and return an indicated photo
-    http.HandleFunc("/photo/", func(writer http.ResponseWriter, req *http.Request) {
+    http.HandleFunc(config.URLPath.PhotoFetch, func(writer http.ResponseWriter, req *http.Request) {
       if !checkAuth(writer, req) {
         return
       }
