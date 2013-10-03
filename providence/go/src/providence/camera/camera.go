@@ -25,19 +25,21 @@ import (
   "time"
 
   "providence/common"
+  "providence/config"
   "providence/log"
+  "providence/types"
 )
 
 /* A goroutine that runs once an hour and purges any files older than the
  * specified retention period. */
 func startPhotoPurger() {
   ticker := time.Tick(1 * time.Hour)
-  if common.Config.Debug {
+  if config.General.Debug {
     ticker = time.Tick(1 * time.Minute)
   }
-  retention, err := time.ParseDuration(common.Config.ImageRetention)
+  retention, err := time.ParseDuration(config.Photo.Retention)
   if err != nil {
-    log.Error("camera.purger", "bogus image retention duration '"+common.Config.ImageRetention+"'. Aborting.")
+    log.Error("camera.purger", "bogus image retention duration '"+config.Photo.Retention+"'. Aborting.")
     return
   }
   go func() {
@@ -46,14 +48,14 @@ func startPhotoPurger() {
       case <-ticker:
         cutoff := time.Now().Add(-retention)
         log.Status("camera.purger", "purging images before "+cutoff.Format("Mon Jan 2 15:04:05 -0700 MST 2006"))
-        imageDir, err := os.Open(common.Config.ImageDirectory)
+        imageDir, err := os.Open(config.Photo.Directory)
         if err != nil {
-          log.Warn("camera.purger", "file open failed on "+common.Config.ImageDirectory)
+          log.Warn("camera.purger", "file open failed on "+config.Photo.Directory)
           break
         }
         finfos, err := imageDir.Readdir(-1)
         if err != nil {
-          log.Warn("camera.purger", "WARNING: ReadDir failure on "+common.Config.ImageDirectory)
+          log.Warn("camera.purger", "WARNING: ReadDir failure on "+config.Photo.Directory)
           imageDir.Close()
           break
         }
@@ -63,7 +65,7 @@ func startPhotoPurger() {
             continue
           }
           if cutoff.After(finfo.ModTime()) {
-            err := os.Remove(filepath.Join(common.Config.ImageDirectory, finfo.Name()))
+            err := os.Remove(filepath.Join(config.Photo.Directory, finfo.Name()))
             count += 1
             if err != nil {
               log.Error("camera.purger", "failure to remove "+finfo.Name())
@@ -104,7 +106,7 @@ func captureImage(url string, ids []string) {
   r := time.Now().UnixNano()
 
   for _, id := range ids {
-    fname := filepath.Join(common.Config.ImageDirectory, id+"-"+time.Now().Format("20060102150405.00")+".jpg")
+    fname := filepath.Join(config.Photo.Directory, id+"-"+time.Now().Format("20060102150405.00")+".jpg")
     file, err := os.Create(fname)
     if err != nil {
       log.Warn("camera.capture", "failed writing image contents for "+id)
@@ -120,7 +122,7 @@ func captureImage(url string, ids []string) {
 }
 
 /* Handler for main.go. */
-func Monitor(incoming chan common.Event, outgoing chan common.Event) {
+func Monitor(incoming chan types.Event, outgoing chan types.Event) {
   type configTracker struct {
     which    string
     id       string
@@ -167,35 +169,29 @@ func Monitor(incoming chan common.Event, outgoing chan common.Event) {
       log.Debug("camera.handler", "processing event ", ev)
       configs, ok := cameraConfigs[ev.Which.ID]
       if ok {
-        for _, config := range configs {
-          pending = append(pending, configTracker{ev.Which.ID, ev.Id, config.Url, config.Interval, config.Count, config.Interval})
+        for _, cfg := range configs {
+          pending = append(pending, configTracker{ev.Which.ID, ev.Id, cfg.Url, cfg.Interval, cfg.Count, cfg.Interval})
         }
       } /* else { } // ok == false is fine, it just means no camera is configured for that sensor */
     }
   }
 }
 
-type cameraConfig struct {
-  Url      string
-  Interval int
-  Count    int
-}
-
-var cameraConfigs map[string][]cameraConfig
+var cameraConfigs map[string][]config.CameraSpecConfig
 
 func init() {
   // pre-parse the camera configuration structure; basically just says how
   // many photos to grab from what URL at what interval, for any event from a
   // given sensor
-  cameraConfigs = make(map[string][]cameraConfig)
-  for which, configs := range common.Config.CameraConfig {
-    cameraConfigs[which] = make([]cameraConfig, 0)
-    for _, config := range configs {
-      cameraConfigs[which] = append(cameraConfigs[which], config)
+  cameraConfigs = make(map[string][]config.CameraSpecConfig)
+  for which, configs := range config.Photo.CameraSpec {
+    cameraConfigs[which] = make([]config.CameraSpecConfig, 0)
+    for _, cfg := range configs {
+      cameraConfigs[which] = append(cameraConfigs[which], cfg)
     }
   }
 
   startPhotoPurger()
 }
 
-var Handler = common.Handler{Monitor, make(chan common.Event, 10), map[common.EventCode]int{common.AJAR: 1, common.ANOMALY: 1}}
+var Handler = common.Handler{Monitor, make(chan types.Event, 10), map[types.EventCode]int{types.AJAR: 1, types.ANOMALY: 1}}

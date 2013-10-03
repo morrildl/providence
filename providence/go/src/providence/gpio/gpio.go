@@ -20,7 +20,9 @@ import (
   "time"
 
   "providence/common"
+  "providence/config"
   "providence/log"
+  "providence/types"
 )
 
 const (
@@ -103,7 +105,7 @@ func makeGpioMonitor(path string) (chan bool, error) {
 /* A binary sensor is a simple normally-closed switch, like a door or window
  * sensor. As a mechanical switch, it needs to be debounced. We accomplish
  * that by simply delaying the channel send by a debounce interval. */
-func binaryMonitor(path string, outgoing chan common.Event) {
+func binaryMonitor(path string, outgoing chan types.Event) {
   monitor, err := makeGpioMonitor(path)
   if err != nil {
     log.Error("gpio.binaryMonitor", "error during GPIO setup, aborting", err)
@@ -127,11 +129,11 @@ func binaryMonitor(path string, outgoing chan common.Event) {
       continue
     }
 
-    var action common.EventCode
+    var action types.EventCode
     if state == RESET {
-      action = common.RESET
+      action = types.RESET
     } else {
-      action = common.TRIP
+      action = types.TRIP
     }
 
     // Wait briefly before sending the message. If we are indeed settled, the
@@ -140,7 +142,7 @@ func binaryMonitor(path string, outgoing chan common.Event) {
     // and we'll schedule a new one starting from now.
     timer = time.AfterFunc(DEBOUNCE_BINARY*time.Millisecond, func() {
       lastSent = state
-      outgoing <- common.Event{Which: common.Sensors[path], Action: action, When: time.Now()}
+      outgoing <- types.Event{Which: common.SensorState[path], Action: action, When: time.Now()}
     })
   }
 }
@@ -148,7 +150,7 @@ func binaryMonitor(path string, outgoing chan common.Event) {
 /* A ringing sensor is one which alternates rapidly between TRIP and RESET for
  * the duration of the event it is reporting. This is typical of electronic
  * sensors such as motion detectors. */
-func ringerMonitor(path string, outgoing chan common.Event) {
+func ringerMonitor(path string, outgoing chan types.Event) {
   monitor, err := makeGpioMonitor(path)
   if err != nil {
     log.Error("gpio.ringerMonitor", "error during GPIO setup, aborting", err)
@@ -167,7 +169,7 @@ func ringerMonitor(path string, outgoing chan common.Event) {
     // the TRIP event immediately
     if rawState == TRIP && logicalState == RESET {
       logicalState = TRIP
-      outgoing <- common.Event{Which: common.Sensors[path], Action: common.TRIP, When: time.Now()}
+      outgoing <- types.Event{Which: common.SensorState[path], Action: types.TRIP, When: time.Now()}
     }
 
     // when we see sensor go back to RESET, it could be the end of the ringing
@@ -179,25 +181,25 @@ func ringerMonitor(path string, outgoing chan common.Event) {
     if rawState == RESET && logicalState == TRIP {
       timer = time.AfterFunc(DEBOUNCE_RINGER*time.Millisecond, func() {
         logicalState = RESET
-        outgoing <- common.Event{Which: common.Sensors[path], Action: common.RESET, When: time.Now()}
+        outgoing <- types.Event{Which: common.SensorState[path], Action: types.RESET, When: time.Now()}
       })
     }
   }
 }
 
 /* Reads 1/0 values from sensors connected to GPIO pins. Pin config is
- * specified in common.Config: if this module is in use, it assumes the pin
+ * specified in types.Config: if this module is in use, it assumes the pin
  * IDs are actually path names to a /sys/class/gpio values file.
  * Injects low-level (trip and reset) eventCodes into the outgoing channel.
  * Never reads from 'incoming'; accordingly, should never be registered for
  * any message types or it will eventually deadlock when the channel buffer
  * fills.
  */
-func Reader(incoming chan common.Event, outgoing chan common.Event) {
-  for path, _ := range common.Config.SensorNames {
+func Reader(incoming chan types.Event, outgoing chan types.Event) {
+  for path, _ := range config.Sensor.Names {
     log.Debug("gpio.Reader", "starting monitor for "+path)
     var err error
-    if common.Config.SensorTypes[path] == common.MOTION {
+    if config.Sensor.Types[path] == types.MOTION {
       go ringerMonitor(path, outgoing)
     } else {
       go binaryMonitor(path, outgoing)
@@ -208,4 +210,4 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
   }
 }
 
-var Handler = common.Handler{Reader, make(chan common.Event, 10), map[common.EventCode]int{}}
+var Handler = common.Handler{Reader, make(chan types.Event, 10), map[types.EventCode]int{}}

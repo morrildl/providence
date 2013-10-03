@@ -20,7 +20,9 @@ import (
   "errors"
 
   "providence/common"
+  "providence/config"
   "providence/log"
+  "providence/types"
 
   _ "github.com/mattn/go-sqlite3"
 )
@@ -28,6 +30,8 @@ import (
 var (
   db                 *sql.DB
   insertEvent        *sql.Stmt
+  insertEventWithId  *sql.Stmt
+  selectRecentEvents *sql.Stmt
   insertRegId        *sql.Stmt
   updateRegId        *sql.Stmt
   deleteRegId        *sql.Stmt
@@ -40,15 +44,23 @@ func init() {
   var err error
 
   // Get a DB connection.
-  db, err = sql.Open("sqlite3", common.Config.DatabasePath)
+  db, err = sql.Open("sqlite3", config.General.DatabasePath)
   if err != nil {
-    log.Error("db.package_init", "recorder failed to open ", common.Config.DatabasePath, err)
+    log.Error("db.package_init", "recorder failed to open ", config.General.DatabasePath, err)
   }
 
   // Initialize events table prepared statements
   insertEvent, err = db.Prepare("insert into events (name, value) values (?, ?)")
   if err != nil {
-    log.Error("db.package_init", "recorder failed to prepare insert statement ", err)
+    log.Error("db.package_init", "recorder failed to prepare insertEvent", err)
+  }
+  insertEventWithId, err = db.Prepare("insert into events (name, value, eventid) values (?, ?, ?)")
+  if err != nil {
+    log.Error("db.package_init", "recorder failed to prepare insertEventWithId", err)
+  }
+  selectRecentEvents, err = db.Prepare("select name, value, eventid, timestamp from events where value in (2, 4) and eventid != '-1' order by timestamp desc limit 10")
+  if err != nil {
+    log.Error("db.package_init", "recorder failed to prepare selectRecentEvents", err)
   }
 
   // Initialize reg_ids table prepared statements
@@ -86,10 +98,14 @@ func init() {
 /* Logs all events it gets to a sqlite3 database. Should be registered for all
  * eventCodes. Never sends anything to the outgoing channel.
  */
-func Recorder(incoming chan common.Event, outgoing chan common.Event) {
+func Recorder(incoming chan types.Event, outgoing chan types.Event) {
   for {
     event := <-incoming
-    insertEvent.Exec(event.Which.Name, event.Action)
+    if event.Id == "" {
+      insertEvent.Exec(event.Which.Name, event.Action)
+    } else {
+      insertEventWithId.Exec(event.Which.Name, event.Action, event.Id)
+    }
   }
 }
 
@@ -226,10 +242,33 @@ func StoreVbofInfo(vbof string, mimeType string, title string) (err error) {
   return nil
 }
 
+func GetRecentEvents() ([]types.Event, error) {
+  rows, err := selectRecentEvents.Query()
+  if err != nil {
+    log.Error("db.get_recents", "failed to fetch recent rows ", err)
+    return make([]types.Event, 0), err
+  }
+  defer rows.Close()
+
+  count := 0
+  events := make([]types.Event, 10)
+  var which string
+  var action string
+  var timestamp string
+  var eventid string
+  for rows.Next() {
+    rows.Scan(&which, &action, &eventid, &timestamp)
+    event := types.Event{}
+    events[count] = event
+    count += 1
+  }
+  return events[:count], nil
+}
+
 var Handler = common.Handler{
   Recorder,
-  make(chan common.Event, 10),
-  map[common.EventCode]int{
-    common.TRIP: 1, common.RESET: 1, common.AJAR: 1, common.ANOMALY: 1,
+  make(chan types.Event, 10),
+  map[types.EventCode]int{
+    types.TRIP: 1, types.RESET: 1, types.AJAR: 1, types.ANOMALY: 1,
   },
 }

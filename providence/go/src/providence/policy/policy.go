@@ -21,7 +21,9 @@ import (
   "time"
 
   "providence/common"
+  "providence/config"
   "providence/log"
+  "providence/types"
 )
 
 type timeWindow struct {
@@ -34,7 +36,7 @@ type timeWindow struct {
 /* Parse string times & durations from config into a struct. */
 func parseExclusionIntervals() []timeWindow {
   windows := []timeWindow{}
-  for _, w := range common.Config.ExclusionIntervals {
+  for _, w := range config.Sensor.ExclusionIntervals {
     providedStart, err := time.Parse("3:04pm", w.Start)
     if err != nil {
       log.Warn("policy.exclusions", "exclusion interval time failed to parse ", w.Start)
@@ -70,14 +72,14 @@ func GetId() string {
  * Currently the heuristics are exclusion intervals and 'door is ajar'
  * detection. Should only be registered for low-level events.
  */
-func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
+func SensorMonitor(incoming chan types.Event, outgoing chan types.Event) {
   // local structs used in synthesizing human-meaningful events from raw events
   type ajarRuleState struct {
     when     time.Time
     lastSend time.Duration
   }
 
-  ajarThreshold := common.Config.AjarThreshold * time.Second
+  ajarThreshold := config.Sensor.AjarThreshold * time.Second
   resendFrequency := 1 * time.Minute
   lastTrips := make(map[string]*ajarRuleState)
   ticker := time.Tick(1 * time.Second)
@@ -91,16 +93,16 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
       now := time.Now()
 
       // timestamp trips for ajar-detection, and clear on resets
-      if e.Action == common.TRIP {
+      if e.Action == types.TRIP {
         lastTrips[e.Which.ID] = &ajarRuleState{now, ajarThreshold}
-      } else if e.Action == common.RESET {
+      } else if e.Action == types.RESET {
         delete(lastTrips, e.Which.ID)
       }
 
       // check trips against exclusion intervals for anomalous events
-      if e.Action == common.TRIP {
+      if e.Action == types.TRIP {
         inWindow := false
-        if e.Which.Kind != common.MOTION {
+        if e.Which.Kind != types.MOTION {
           // skip windows and always send motion events, as they are more
           // like state updates than events
           for _, w := range windows {
@@ -123,7 +125,7 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
           }
         }
         if !inWindow {
-          outgoing <- common.Event{Which: e.Which, Action: common.ANOMALY, When: now, Id: GetId()}
+          outgoing <- types.Event{Which: e.Which, Action: types.ANOMALY, When: now, Id: GetId()}
         }
       }
 
@@ -132,11 +134,11 @@ func SensorMonitor(incoming chan common.Event, outgoing chan common.Event) {
       for which, last := range lastTrips {
         if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.lastSend {
           last.lastSend += resendFrequency
-          outgoing <- common.Event{Which: common.Sensors[which], Action: common.AJAR, When: time.Now(), Id: GetId()}
+          outgoing <- types.Event{Which: common.SensorState[which], Action: types.AJAR, When: time.Now(), Id: GetId()}
         }
       }
     }
   }
 }
 
-var Handler = common.Handler{SensorMonitor, make(chan common.Event, 10), map[common.EventCode]int{common.TRIP: 1, common.RESET: 1}}
+var Handler = common.Handler{SensorMonitor, make(chan types.Event, 10), map[types.EventCode]int{types.TRIP: 1, types.RESET: 1}}

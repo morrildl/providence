@@ -24,9 +24,11 @@ import (
   "time"
 
   "providence/common"
+  "providence/config"
   "providence/db"
   "providence/log"
   "providence/server"
+  "providence/types"
 )
 
 type ShareUrlRequest struct {
@@ -106,7 +108,7 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
           log.Error("gcm.transmitter", "Failed to create GCM HTTP request", err)
           break
         }
-        httpReq.Header.Add("Authorization", "key="+common.Config.GCMOAuthToken)
+        httpReq.Header.Add("Authorization", "key="+config.GCM.OAuthToken)
         httpReq.Header.Add("Content-Type", GCM_MIMETYPE)
         client := &http.Client{}
         httpResp, err := client.Do(httpReq)
@@ -154,7 +156,7 @@ func startTransmitter() (chan request, chan db.RegIdUpdate) {
  * human review -- i.e. via GCM. Should only be registered for AJAR and
  * ANOMALY.
  */
-func Escalator(incoming chan common.Event, outgoing chan common.Event) {
+func Escalator(incoming chan types.Event, outgoing chan types.Event) {
   regIdUpdateSink := db.StartRegIdUpdater()
 
   // start the HTTP server which is our source for regID creates & deletes
@@ -189,4 +191,4 @@ func Escalator(incoming chan common.Event, outgoing chan common.Event) {
   }
 }
 
-var Handler = common.Handler{Escalator, make(chan common.Event, 10), map[common.EventCode]int{common.AJAR: 1, common.ANOMALY: 1}}
+var Handler = common.Handler{Escalator, make(chan types.Event, 10), map[types.EventCode]int{types.AJAR: 1, types.ANOMALY: 1}}

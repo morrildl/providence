@@ -12,3 +12,5 @@ monitor.log
 nohup.out
 *.pem
 vbof
+.*.swp
+*.log

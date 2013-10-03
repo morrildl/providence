@@ -21,15 +21,17 @@ import (
   "time"
 
   "providence/common"
+  "providence/config"
   "providence/log"
+  "providence/types"
 )
 
 /* Test-mode low-level event injector. Has the same role as ttyReader, but
  * listens on an HTTP server, so that event can be faked locally.
  */
-func MockReader(incoming chan common.Event, outgoing chan common.Event) {
-  c := make(chan common.Event, 5)
-  go func(c chan common.Event) {
+func MockReader(incoming chan types.Event, outgoing chan types.Event) {
+  c := make(chan types.Event, 5)
+  go func(c chan types.Event) {
     http.HandleFunc("/fake", func(writer http.ResponseWriter, req *http.Request) {
       err := req.ParseForm()
       if err != nil {
@@ -37,13 +39,13 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
       } else {
         which := req.Form["w"][0]
         action, _ := strconv.Atoi(req.Form["a"][0])
-        c <- common.Event{Which: common.Sensors[which], Action: common.EventCode(action), When: time.Now()}
+        c <- types.Event{Which: common.SensorState[which], Action: types.EventCode(action), When: time.Now()}
       }
       writer.WriteHeader(http.StatusOK)
       io.WriteString(writer, "OK")
     })
 
-    log.Error("mock.reader", "unexpected server shutdown", http.ListenAndServe(":"+strconv.Itoa(common.Config.ServerPort+1), nil))
+    log.Error("mock.reader", "unexpected server shutdown", http.ListenAndServe(":"+strconv.Itoa(config.Server.Port+1), nil))
   }(c)
   for {
     b := <-c
@@ -51,4 +53,4 @@ func MockReader(incoming chan common.Event, outgoing chan common.Event) {
   }
 }
 
-var Handler = common.Handler{MockReader, make(chan common.Event, 10), map[common.EventCode]int{}} // no registrations
+var Handler = common.Handler{MockReader, make(chan types.Event, 10), map[types.EventCode]int{}} // no registrations

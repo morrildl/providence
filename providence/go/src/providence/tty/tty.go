@@ -21,7 +21,9 @@ import (
   "time"
 
   "providence/common"
+  "providence/config"
   "providence/log"
+  "providence/types"
 )
 
 /* Reads a USB TTY looking for JSON messages from a hardware monitor and
@@ -30,10 +32,10 @@ import (
  * any message types or it will eventually deadlock when the channel buffer
  * fills.
  */
-func Reader(incoming chan common.Event, outgoing chan common.Event) {
-  file, err := os.Open(common.Config.Tty)
+func Reader(incoming chan types.Event, outgoing chan types.Event) {
+  file, err := os.Open(config.Sensor.TTYPath)
   if err != nil {
-    log.Error("tty.reader", "error opening ", common.Config.Tty, ", aborting ", err)
+    log.Error("tty.reader", "error opening ", config.Sensor.TTYPath, ", aborting ", err)
     return
   }
 
@@ -47,11 +49,11 @@ func Reader(incoming chan common.Event, outgoing chan common.Event) {
   for {
     err := dec.Decode(&e)
     if err == nil {
-      outgoing <- common.Event{Which: common.Sensors[e.Which], Action: common.EventCode(e.Action), When: time.Now()}
+      outgoing <- types.Event{Which: common.SensorState[e.Which], Action: types.EventCode(e.Action), When: time.Now()}
     } else {
       log.Warn("tty.reader", "JSON parse error from tty")
     }
   }
 }
 
-var Handler = common.Handler{Reader, make(chan common.Event, 10), map[common.EventCode]int{}} // no registrations
+var Handler = common.Handler{Reader, make(chan types.Event, 10), map[types.EventCode]int{}} // no registrations
