@@ -30,11 +30,11 @@ import (
   "fmt"
   "io/ioutil"
   "log"
+  "net/url"
   "os"
   "strconv"
   "strings"
   "time"
-  "net/url"
 
   "providence/common"
   plog "providence/log"
@@ -56,20 +56,20 @@ var General = GeneralConfig{
 }
 
 type ServerConfig struct {
-  Port          int
-  URLRoot       string
-  HttpsCertFile string
-  HttpsKeyFile  string
-  ClientBKS     string
+  Port              int
+  URLRoot           string
+  HttpsCertFile     string
+  HttpsKeyFile      string
+  ClientBKS         string
   ClientBKSPassword string
 }
 
 var Server = ServerConfig{
-  Port:          4280,
-  URLRoot:       "http://localhost:4280/",
-  HttpsCertFile: "",
-  HttpsKeyFile:  "",
-  ClientBKS:     "./keystore.bks",
+  Port:              4280,
+  URLRoot:           "http://localhost:4280/",
+  HttpsCertFile:     "",
+  HttpsKeyFile:      "",
+  ClientBKS:         "./keystore.bks",
   ClientBKSPassword: "password",
 }
 
