@@ -132,6 +132,16 @@ public class Config {
         ready = true;
         return true;
     }
+    
+    private void reset() {
+        ready = false;
+    }
+
+    public static void clearConfig(Context context) {
+        context.getSharedPreferences("globalconfig", Context.MODE_PRIVATE)
+                .edit().clear().commit();
+        getInstance(context).reset();
+    }
 
     private void readyOrThrow() {
         if (!ready) {

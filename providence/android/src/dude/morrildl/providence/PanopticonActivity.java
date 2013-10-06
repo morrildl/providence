@@ -33,6 +33,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Resources.NotFoundException;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -40,10 +41,10 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.Toast;
 
 import com.google.android.gcm.GCMRegistrar;
 
+import dude.morrildl.providence.db.OpenHelper;
 import dude.morrildl.providence.gcm.GCMIntentService;
 
 public class PanopticonActivity extends Activity {
@@ -115,13 +116,30 @@ public class PanopticonActivity extends Activity {
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle item selection
         switch (item.getItemId()) {
-        case R.id.menu_test_1:
-            Toast.makeText(this, R.string.menu_test_1, Toast.LENGTH_SHORT)
-                    .show();
-            return true;
-        case R.id.menu_test_2:
-            Toast.makeText(this, R.string.menu_test_2, Toast.LENGTH_SHORT)
-                    .show();
+        case R.id.menu_reset:
+            AlertDialog.Builder ad = new AlertDialog.Builder(this);
+            ad.setTitle(R.string.mn_cd_confirm_title);
+            ad.setMessage(R.string.mn_cd_confirm_body);
+            ad.setPositiveButton(R.string.mn_cd_confirm_pos,
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface di, int i) {
+                            Context context = PanopticonActivity.this;
+                            Config.clearConfig(context);
+                            OpenHelper helper = new OpenHelper(context);
+                            SQLiteDatabase db = helper.getWritableDatabase();
+                            db.delete("events", null, null);
+                            finish();
+                        }
+                    });
+            ad.setNegativeButton(R.string.mn_cd_confirm_neg,
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface di, int i) {
+                        }
+                    });
+            ad.show();
+
             return true;
         default:
             return super.onOptionsItemSelected(item);

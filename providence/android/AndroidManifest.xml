@@ -59,21 +59,6 @@
         <service
             android:name="dude.morrildl.providence.gcm.GCMIntentService"
             android:exported="false" />
-
-        <activity
-            android:name="dude.morrildl.providence.VbofActivity"
-            android:exported="true"
-            android:label="@string/vbof_name"
-            android:theme="@style/android:Theme.Holo.Light"
-            android:windowSoftInputMode="adjustPan" >
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-
-                <data android:mimeType="image/*" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
     </application>
 
 </manifest>
