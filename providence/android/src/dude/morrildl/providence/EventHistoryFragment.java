@@ -14,7 +14,6 @@
  */
 package dude.morrildl.providence;
 
-import java.security.KeyStoreException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -81,20 +80,13 @@ public class EventHistoryFragment extends ListFragment {
     public void onHiddenChanged(boolean hidden) {
         super.onHiddenChanged(hidden);
         if (!hidden) {
-            Stuff stuff;
-            try {
-                stuff = Stuff.getInstance(getActivity());
-            } catch (KeyStoreException e1) {
-                return;
-            }
             OpenHelper helper = new OpenHelper(getActivity());
             db = helper.getReadableDatabase();
             c = db.query("events", new String[] { "which", "type", "event",
                     "ts", "rowid as _id", "eventid" },
                     "type <> 'Motion Sensor'", null, null, null, "ts desc");
 
-            setListAdapter(new PanopticonCursorAdapter(getActivity(), stuff, c,
-                    0));
+            setListAdapter(new PanopticonCursorAdapter(getActivity(), c, 0));
 
             Cursor tmpCursor = db.query("last_motion",
                     new String[] { "max(ts)" }, null, null, null, null, null);

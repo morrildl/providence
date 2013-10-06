@@ -26,6 +26,7 @@ public class StringRequest extends com.android.volley.toolbox.StringRequest {
         return contentType;
     }
 
+    @Override
     public Map<String, String> getHeaders() {
         return headers;
     }

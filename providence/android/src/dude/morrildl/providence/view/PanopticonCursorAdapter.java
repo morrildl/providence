@@ -27,7 +27,6 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CursorAdapter;
-import dude.morrildl.providence.Stuff;
 
 /**
  * ListView adapter that feeds data from a Sqlite cursor into EventSummaryViews.
@@ -36,11 +35,9 @@ public class PanopticonCursorAdapter extends CursorAdapter {
     private final HashMap<String, Integer> colorMap = new HashMap<String, Integer>();
     private final int[] colors = new int[5];
     private final int defaultColor = Color.argb(0xff, 0x33, 0xb5, 0xe5);
-    private final Stuff stuff;
     private int usedColors = 0;
 
-    public PanopticonCursorAdapter(Context context, Stuff stuff, Cursor c,
-            int flags) {
+    public PanopticonCursorAdapter(Context context, Cursor c, int flags) {
         super(context, c, flags);
         SharedPreferences prefs = context.getSharedPreferences("colormap",
                 Context.MODE_PRIVATE);
@@ -53,8 +50,6 @@ public class PanopticonCursorAdapter extends CursorAdapter {
         colors[2] = Color.argb(0xff, 0x45, 0x45, 0xff);
         colors[3] = Color.argb(0xff, 0xff, 0xff, 0x45);
         colors[4] = Color.argb(0xff, 0x45, 0xff, 0xff);
-
-        this.stuff = stuff;
     }
 
     /*
@@ -104,7 +99,7 @@ public class PanopticonCursorAdapter extends CursorAdapter {
                 }
             } else if ("eventid".equals(colName)) {
                 String eventId = c.getString(i);
-                (new PhotoAsyncTask(stuff, esv, eventId)).execute();
+                (new PhotoAsyncTask(context, esv, eventId)).execute();
             }
         }
     }

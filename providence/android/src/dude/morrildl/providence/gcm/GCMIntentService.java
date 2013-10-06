@@ -14,11 +14,6 @@
  */
 package dude.morrildl.providence.gcm;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.security.KeyStoreException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -29,24 +24,15 @@ import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.Resources.NotFoundException;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.net.Uri;
-import android.os.Environment;
-import android.provider.MediaStore;
 import android.util.Log;
 
-import com.android.volley.Request.Method;
-import com.android.volley.Response.Listener;
 import com.google.android.gcm.GCMBaseIntentService;
 
-import dude.morrildl.providence.Stuff;
 import dude.morrildl.providence.PanopticonActivity;
 import dude.morrildl.providence.R;
 import dude.morrildl.providence.db.OpenHelper;
-import dude.morrildl.providence.volley.ByteArrayRequest;
-import dude.morrildl.providence.volley.ByteArrayResponse;
 
 public class GCMIntentService extends GCMBaseIntentService {
     // 10 hours
@@ -58,94 +44,6 @@ public class GCMIntentService extends GCMBaseIntentService {
         super(SENDER_ID);
     }
 
-    private void handleVbof(final Context context, String url) {
-        Listener<ByteArrayResponse> listener = new Listener<ByteArrayResponse>() {
-            @Override
-            public void onResponse(ByteArrayResponse response) {
-                try {
-                    // Write the file to external storage
-                    File f = Environment
-                            .getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-                    File vbofPath = new File(f.getCanonicalPath() + "/VBOF");
-                    String fileId = "" + System.currentTimeMillis();
-                    File vbofFile = new File(vbofPath.getCanonicalPath() + "/"
-                            + fileId);
-                    if (!vbofPath.exists()) {
-                        vbofPath.mkdirs();
-                    } else {
-                        if (!vbofPath.isDirectory()) {
-                            Log.e("GCMIntentService.doInBackground",
-                                    "VBOF path not a directory: "
-                                            + vbofPath.getCanonicalPath());
-                            return;
-                        }
-                    }
-                    FileOutputStream outputStream = new FileOutputStream(
-                            vbofFile);
-                    outputStream.write(response.bytes);
-                    outputStream.close();
-
-                    /*
-                     * tell the MediaProvider about the new image
-                     */
-                    String imageTitle = response.headers.get("X-Image-Title");
-                    imageTitle = imageTitle == null ? "" : imageTitle;
-                    ContentValues values = new ContentValues(7);
-                    if (imageTitle != null && !"".equals(imageTitle)) {
-                        values.put(MediaStore.Images.Media.TITLE, imageTitle);
-                        values.put(MediaStore.Images.Media.DESCRIPTION,
-                                imageTitle);
-                    } else {
-                        values.put(MediaStore.Images.Media.TITLE, fileId);
-                    }
-                    String mimeType = response.headers.get("Content-Type");
-                    if (mimeType != null && !"".equals(mimeType)) {
-                        values.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
-                    }
-                    values.put(MediaStore.Images.Media.BUCKET_ID,
-                            vbofFile.hashCode());
-                    values.put("_data", vbofFile.getCanonicalPath());
-                    Uri target = getContentResolver().insert(
-                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                            values);
-
-                    // fire off a view Intent for the newly-written URL
-                    Intent i = new Intent(Intent.ACTION_VIEW);
-                    i.setData(target);
-                    PendingIntent pi = PendingIntent.getActivity(context, 43,
-                            i, 0);
-                    Notification n = (new Notification.Builder(context))
-                            .setContentTitle(
-                                    context.getResources().getString(
-                                            R.string.vbof_notif))
-                            .setContentText(imageTitle).setContentIntent(pi)
-                            .setSmallIcon(R.drawable.ic_stat_event)
-                            .setAutoCancel(true).build();
-                    ((NotificationManager) context
-                            .getSystemService(Context.NOTIFICATION_SERVICE))
-                            .notify(43, n);
-                } catch (MalformedURLException e) {
-                    Log.e("FetchVbofTask.doInBackground", "URL error", e);
-                } catch (NotFoundException e) {
-                    Log.e("FetchVbofTask.doInBackground", "URL error", e);
-                } catch (IOException e) {
-                    Log.e("FetchVbofTask.doInBackground", "transmission error",
-                            e);
-                } catch (ClassCastException e) {
-                    Log.w("FetchVbofTask.doInBackground",
-                            "did server send us the wrong kind of URL?", e);
-                }
-            }
-        };
-
-        ByteArrayRequest r = new ByteArrayRequest(Method.GET, url, listener,
-                null);
-        try {
-            Stuff.getInstance(context).getRequestQueue().add(r);
-        } catch (KeyStoreException e) {
-        }
-    }
-
     @Override
     protected void onError(Context context, String message) {
         Log.e("IntentService.onError", message);
@@ -153,14 +51,6 @@ public class GCMIntentService extends GCMBaseIntentService {
 
     @Override
     protected void onMessage(Context context, Intent intent) {
-        // If the 'Url' extra is present, means it's a VBOF share
-        String url = intent.getStringExtra("Url");
-        if (url != null && !"".equals(url)) {
-            handleVbof(context, url);
-            return;
-        }
-
-        // Otherwise it's a security event
         boolean isMotion = (Integer.parseInt(intent
                 .getStringExtra("SensorType")) == 2);
         boolean notifyOnMotion = false;
@@ -179,9 +69,9 @@ public class GCMIntentService extends GCMBaseIntentService {
         values.put("event", intent.getStringExtra("EventName"));
         values.put("ts", ts);
         values.put("eventid", intent.getStringExtra("EventId"));
-        db.beginTransaction();
         db.insert("events", null, values);
 
+        db.beginTransaction();
         // filter out motion events, unless it's been a long time since the last
         if (isMotion) {
             Cursor c = db.query("last_motion", new String[] { "ts" },
@@ -224,7 +114,11 @@ public class GCMIntentService extends GCMBaseIntentService {
 
         if (!isMotion || notifyOnMotion) {
             Intent i = new Intent(context, PanopticonActivity.class);
-            PendingIntent pi = PendingIntent.getActivity(context, 42, i, 0);
+            i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    | Intent.FLAG_ACTIVITY_TASK_ON_HOME);
+            PendingIntent pi = PendingIntent.getActivity(context, 42, i,
+                    PendingIntent.FLAG_UPDATE_CURRENT);
             Notification n = (new Notification.Builder(context))
                     .setContentTitle(
                             intent.getStringExtra("WhichName") + " "
@@ -232,6 +126,16 @@ public class GCMIntentService extends GCMBaseIntentService {
                     .setContentIntent(pi)
                     .setSmallIcon(R.drawable.ic_stat_event).setAutoCancel(true)
                     .build();
+            /*
+             * Notification n = (new Notification.Builder(context))
+             * .setContentTitle( intent.getStringExtra("WhichName") + " " +
+             * intent.getStringExtra("EventName")) .setContentIntent(
+             * TaskStackBuilder .create(context.getApplicationContext())
+             * .addNextIntent(i) .getPendingIntent(42,
+             * PendingIntent.FLAG_UPDATE_CURRENT))
+             * .setSmallIcon(R.drawable.ic_stat_event).setAutoCancel(true)
+             * .build();
+             */
             ((NotificationManager) context
                     .getSystemService(Context.NOTIFICATION_SERVICE)).notify(42,
                     n);

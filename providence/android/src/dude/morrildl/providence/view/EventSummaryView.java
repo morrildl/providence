@@ -14,7 +14,6 @@
  */
 package dude.morrildl.providence.view;
 
-import java.security.KeyStoreException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -42,7 +41,7 @@ import com.android.volley.Response.Listener;
 import com.android.volley.VolleyError;
 
 import dude.morrildl.providence.R;
-import dude.morrildl.providence.Stuff;
+import dude.morrildl.providence.NetworkHelper;
 import dude.morrildl.providence.volley.ImageRequest;
 
 public class EventSummaryView extends ViewGroup {
@@ -242,11 +241,7 @@ public class EventSummaryView extends ViewGroup {
             });
             ir.setHeader("X-OAuth-JWT", token);
             ir.setShouldCache(true);
-            try {
-                Stuff.getInstance(getContext()).getRequestQueue().add(ir);
-            } catch (KeyStoreException e) {
-                Log.e(TAG, "keystore error getting Stuff instance", e);
-            }
+            NetworkHelper.getInstance(getContext()).getRequestQueue().add(ir);
             volleyRequests.add(ir);
         }
     }

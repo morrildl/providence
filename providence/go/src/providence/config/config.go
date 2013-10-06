@@ -24,6 +24,7 @@ package config
  */
 
 import (
+  "encoding/base64"
   "encoding/json"
   "flag"
   "fmt"
@@ -59,6 +60,8 @@ type ServerConfig struct {
   URLRoot       string
   HttpsCertFile string
   HttpsKeyFile  string
+  ClientBKS     string
+  ClientBKSPassword string
 }
 
 var Server = ServerConfig{
@@ -66,6 +69,8 @@ var Server = ServerConfig{
   URLRoot:       "http://localhost:4280/",
   HttpsCertFile: "",
   HttpsKeyFile:  "",
+  ClientBKS:     "./keystore.bks",
+  ClientBKSPassword: "password",
 }
 
 type GCMConfig struct {
@@ -152,12 +157,12 @@ type URLPathConfig struct {
 }
 
 var URLPath = URLPathConfig{
-  RegID:      "/regid",
   Heartbeat:  "/heartbeat",
-  Recent:     "/recent",
-  PhotoList:  "/photos/",
   PhotoFetch: "/photo/",
+  PhotoList:  "/photos/",
   QRConfig:   "/qrconfig",
+  Recent:     "/recent",
+  RegID:      "/regid",
 }
 
 func init() {
@@ -216,7 +221,6 @@ func init() {
     log.Fatal("loading config failed on unmarshal ", err)
   }
 
-  fmt.Println(General.Debug)
   // set up logging based on config
   if General.Debug {
     plog.SetLogLevel(plog.LEVEL_DEBUG)
@@ -273,22 +277,41 @@ func URLJoin(chunks ...string) string {
 /* Returns a string encoding all the config settings the Android app client
  * needs, in the standard Java properties file format. */
 func GetClientConfig() (string, error) {
-  template := `OAUTH_AUDIENCE=%v
+  template := `OAUTH_AUDIENCE=audience:server:client_id:%v
 REGID_URL=%v
 PHOTO_BASE=%v
 CANONICAL_SERVER_NAME=%v
-  `
+KEYSTORE_PASSWORD=%v
+KEYSTORE=%v
+`
   serverUrl, err := url.Parse(Server.URLRoot)
   if err != nil {
     plog.Warn("config.GetClientConfig", "error parsing URLRoot?!", err)
     return "", err
   }
+
   canonicalName := serverUrl.Host
   colon := strings.Index(canonicalName, ":")
   if colon == -1 {
     canonicalName = canonicalName + ":-1"
   }
-  populated := fmt.Sprintf(template, UserAuth.OAuthAudience, GetURLFor(PATH_REGID), GetURLFor(PATH_PHOTO_LIST), canonicalName)
+
+  ksFile, err := os.Open(Server.ClientBKS)
+  if err != nil {
+    plog.Error("server.keystore", "no client BKS found")
+    return "", err
+  }
+  defer ksFile.Close()
+
+  ksBytes, err := ioutil.ReadAll(ksFile)
+  if err != nil {
+    plog.Error("server.keystore", "failed reading BKS file "+Server.ClientBKS)
+    return "", err
+  }
+
+  ksB64 := base64.StdEncoding.EncodeToString(ksBytes)
+
+  populated := fmt.Sprintf(template, UserAuth.OAuthAudience, GetURLFor(PATH_REGID), GetURLFor(PATH_PHOTO_LIST), canonicalName, Server.ClientBKSPassword, ksB64)
   return populated, nil
 }
 

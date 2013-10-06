@@ -110,6 +110,11 @@ func verifyToken(rawToken string) (string, error) {
     return "", errors.New("token is for unauthorized " + email)
   }
 
+  log.Debug("server.verifyToken", "aud as received = "+aud)
+  log.Debug("server.verifyToken", "aud as expected = "+config.UserAuth.OAuthAudience)
+  log.Debug("server.verifyToken", "cid as received = "+cid)
+  log.Debug("server.verifyToken", "cid as expected = "+config.UserAuth.OAuthClientID)
+
   if parsedToken.Claims["aud"] != config.UserAuth.OAuthAudience {
     log.Warn("server.verifyToken", "received token for wrong aud "+aud)
     return "", errors.New("token is for unrecognized aud " + aud)
@@ -206,11 +211,14 @@ func Start() (chan db.RegIdUpdate, chan ShareUrlRequest) {
       }
       writer.WriteHeader(http.StatusOK)
       writer.Header().Add("Content-Type", "text/html")
-      body := fmt.Sprintf(`<!DOCTYPE html><html><body><img src="%v"></body></html>`, url)
+      body := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head><meta http-equiv="refresh" content="0; url=%v"></head>
+<body><script language="JavaScript">window.location="%v";</script></body>
+</html>`, url, url)
       writer.Header().Add("Content-Length", strconv.Itoa(len(body)))
       io.WriteString(writer, body)
     })
-
 
     // return a list of the most recent 10 entries; intended for
     // new clients to get initial state
