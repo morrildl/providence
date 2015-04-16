@@ -1,6 +1,7 @@
-bin
-gen
-project.properties
-.classpath
-.project
-.settings
+/build
+/app/build
+/local.properties
+/.idea/workspace.xml
+/.idea/libraries
+.gradle
+.*.swp

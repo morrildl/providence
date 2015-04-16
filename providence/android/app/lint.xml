@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <issue id="InlinedApi" severity="ignore" />
+    <issue id="SimpleDateFormat">
+        <ignore path="src/dude/morrildl/providence/EventDetailsFragment.java" />
+        <ignore path="src/dude/morrildl/providence/gcm/GCMIntentService.java" />
+    </issue>
+</lint>
