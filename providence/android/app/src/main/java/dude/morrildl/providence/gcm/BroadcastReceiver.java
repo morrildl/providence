@@ -14,12 +14,16 @@
  */
 package dude.morrildl.providence.gcm;
 
+import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 
-public class GCMBroadcastReceiver extends
-		com.google.android.gcm.GCMBroadcastReceiver {
-	@Override
-	protected String getGCMIntentServiceClassName(Context context) {
-		return "dude.morrildl.providence.gcm.GCMIntentService";
-	}
+public class BroadcastReceiver extends android.content.BroadcastReceiver {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        context.startService(intent.setComponent(
+                new ComponentName(context.getPackageName(), IntentService.class.getName())));
+        setResultCode(Activity.RESULT_OK);
+    }
 }

@@ -1,7 +1,9 @@
 /build
 /app/build
+/app/app-release.apk
 /local.properties
 /.idea/workspace.xml
 /.idea/libraries
 .gradle
 .*.swp
+volley

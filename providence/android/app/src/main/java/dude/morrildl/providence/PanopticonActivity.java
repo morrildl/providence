@@ -14,14 +14,6 @@
  */
 package dude.morrildl.providence;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-
-import javax.net.ssl.HttpsURLConnection;
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.FragmentManager;
@@ -30,9 +22,9 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.content.res.Resources.NotFoundException;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -42,10 +34,17 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 
-import com.google.android.gcm.GCMRegistrar;
+import com.google.android.gms.gcm.GoogleCloudMessaging;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+import javax.net.ssl.HttpsURLConnection;
 
 import dude.morrildl.providence.db.OpenHelper;
-import dude.morrildl.providence.gcm.GCMIntentService;
+import dude.morrildl.providence.gcm.IntentService;
 
 public class PanopticonActivity extends Activity {
     private static final String ZXING_PACKAGE = "com.google.zxing.client.android";
@@ -55,14 +54,14 @@ public class PanopticonActivity extends Activity {
     private EventHistoryFragment ehf;
 
     private ConfigWaitFragment cwf;
+    private GoogleCloudMessaging gcm;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (data != null) {
             Config.storeConfig(this, data.getStringExtra("SCAN_RESULT"));
         } else {
-            Log.e("PanopticonActivity.onActivityResult",
-                    "no data returned by Barcode Scanner?");
+            Log.e("PanopticonActivity.onActivityResult", "no data returned by Barcode Scanner?");
             return;
         }
 
@@ -73,30 +72,24 @@ public class PanopticonActivity extends Activity {
             EventHistoryFragment ehf = new EventHistoryFragment();
             ft.add(R.id.main_container, ehf).show(ehf).commit();
         } else {
-            Log.e("PanopticonActivity.onActivityResult",
-                    "config not ready even after QR scan");
+            Log.e("PanopticonActivity.onActivityResult", "config not ready even after QR scan");
         }
     }
 
-    /** Called when the activity is first created. */
+    /**
+     * Called when the activity is first created.
+     */
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        GCMRegistrar.checkDevice(this);
-        GCMRegistrar.checkManifest(this);
-        String regId = GCMRegistrar.getRegistrationId(this);
-        if (regId == null || "".equals(regId)) {
-            GCMRegistrar.register(this, GCMIntentService.SENDER_ID);
-        }
 
         config = Config.getInstance(this);
 
         setContentView(R.layout.main);
         ehf = new EventHistoryFragment();
         cwf = new ConfigWaitFragment();
-        getFragmentManager().beginTransaction().add(R.id.main_container, ehf)
-                .add(R.id.main_container, cwf).commit();
+        getFragmentManager().beginTransaction().add(R.id.main_container, ehf).add(
+                R.id.main_container, cwf).commit();
     }
 
     @Override
@@ -107,42 +100,36 @@ public class PanopticonActivity extends Activity {
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        GCMRegistrar.onDestroy(this);
-    }
-
-    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle item selection
         switch (item.getItemId()) {
-        case R.id.menu_reset:
-            AlertDialog.Builder ad = new AlertDialog.Builder(this);
-            ad.setTitle(R.string.mn_cd_confirm_title);
-            ad.setMessage(R.string.mn_cd_confirm_body);
-            ad.setPositiveButton(R.string.mn_cd_confirm_pos,
-                    new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface di, int i) {
-                            Context context = PanopticonActivity.this;
-                            Config.clearConfig(context);
-                            OpenHelper helper = new OpenHelper(context);
-                            SQLiteDatabase db = helper.getWritableDatabase();
-                            db.delete("events", null, null);
-                            finish();
-                        }
-                    });
-            ad.setNegativeButton(R.string.mn_cd_confirm_neg,
-                    new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface di, int i) {
-                        }
-                    });
-            ad.show();
+            case R.id.menu_reset:
+                AlertDialog.Builder ad = new AlertDialog.Builder(this);
+                ad.setTitle(R.string.mn_cd_confirm_title);
+                ad.setMessage(R.string.mn_cd_confirm_body);
+                ad.setPositiveButton(R.string.mn_cd_confirm_pos,
+                                     new DialogInterface.OnClickListener() {
+                                         @Override
+                                         public void onClick(DialogInterface di, int i) {
+                                             Context context = PanopticonActivity.this;
+                                             Config.clearConfig(context);
+                                             OpenHelper helper = new OpenHelper(context);
+                                             SQLiteDatabase db = helper.getWritableDatabase();
+                                             db.delete("events", null, null);
+                                             finish();
+                                         }
+                                     });
+                ad.setNegativeButton(R.string.mn_cd_confirm_neg,
+                                     new DialogInterface.OnClickListener() {
+                                         @Override
+                                         public void onClick(DialogInterface di, int i) {
+                                         }
+                                     });
+                ad.show();
 
-            return true;
-        default:
-            return super.onOptionsItemSelected(item);
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
     }
 
@@ -150,70 +137,57 @@ public class PanopticonActivity extends Activity {
     public void onResume() {
         super.onResume();
 
-        String regId = GCMRegistrar.getRegistrationId(this);
-        if (regId != null && !"".equals(regId)) {
-            if (!GCMRegistrar.isRegisteredOnServer(this)) {
-                (new AsyncTask<String, Integer, String>() {
-                    @Override
-                    protected String doInBackground(String... regIds) {
-                        String regId = regIds[0];
+        SharedPreferences prefs = getSharedPreferences("gcm_status", Activity.MODE_PRIVATE);
+        boolean serverRegistered = prefs.getBoolean("serverRegistered", false);
+        String regId = prefs.getString("regId", "");
+        if (!serverRegistered || regId.isEmpty()) {
+            (new AsyncTask<String, String, String>() {
+                @Override
+                protected String doInBackground(String... params) {
+                    try {
+                        String regId = GoogleCloudMessaging.getInstance(
+                                PanopticonActivity.this).register(IntentService.SENDER_ID);
+                        getSharedPreferences("gcm_status", Activity.MODE_PRIVATE).edit().putString(
+                                "regId", regId).commit();
+
                         URL url;
                         HttpURLConnection cxn = null;
-                        try {
-                            Context context = PanopticonActivity.this;
-                            Config config = Config.getInstance(context);
-                            if (!config.isReady()) {
-                                return "";
-                            }
-                            url = new URL(config.getRegIdUrl());
-                            cxn = (HttpURLConnection) url.openConnection();
-
-                            NetworkHelper helper = NetworkHelper
-                                    .getInstance(context);
-                            String token = helper.fetchAuthToken();
-                            cxn.addRequestProperty("X-OAuth-JWT", token);
-
-                            if (cxn instanceof HttpsURLConnection) {
-                                ((HttpsURLConnection) cxn)
-                                        .setSSLSocketFactory(helper
-                                                .getSslSocketFactory());
-                            }
-
-                            cxn.setDoInput(true);
-                            cxn.setRequestMethod("POST");
-                            OutputStream os = cxn.getOutputStream();
-                            os.write(regId.getBytes());
-                            os.close();
-                            return new java.util.Scanner(cxn.getInputStream())
-                                    .useDelimiter("\\A").next();
-                        } catch (MalformedURLException e) {
-                            Log.e("doInBackground", "URL error", e);
-                        } catch (NotFoundException e) {
-                            Log.e("doInBackground", "URL error", e);
-                        } catch (IOException e) {
-                            Log.e("doInBackground", "transmission error", e);
-                        } catch (OAuthException e) {
-                            Log.e("doInBackground",
-                                    "failed fetching auth token", e);
-                        } finally {
-                            if (cxn != null)
-                                cxn.disconnect();
+                        Config config = Config.getInstance(PanopticonActivity.this);
+                        if (!config.isReady()) {
+                            return "";
                         }
-                        return "";
-                    }
+                        url = new URL(config.getRegIdUrl());
+                        cxn = (HttpURLConnection) url.openConnection();
 
-                    @Override
-                    protected void onPostExecute(String result) {
-                        if (result != null && "OK".equals(result.trim())) {
-                            GCMRegistrar.setRegisteredOnServer(
-                                    PanopticonActivity.this, true);
-                        } else {
-                            Log.w("onPostExecute result",
-                                    "failed registering GCM RegID on server");
+                        NetworkHelper helper = NetworkHelper.getInstance(PanopticonActivity.this);
+                        String token = helper.fetchAuthToken();
+                        cxn.addRequestProperty("X-OAuth-JWT", token);
+
+                        if (cxn instanceof HttpsURLConnection) {
+                            ((HttpsURLConnection) cxn).setSSLSocketFactory(
+                                    helper.getSslSocketFactory());
                         }
+
+                        cxn.setDoInput(true);
+                        cxn.setRequestMethod("POST");
+                        OutputStream os = cxn.getOutputStream();
+                        os.write(regId.getBytes());
+                        os.close();
+
+                        getSharedPreferences("gcm_status", Activity.MODE_PRIVATE).edit().putBoolean(
+                                "serverRegistered", true).commit();
+
+                        return new java.util.Scanner(cxn.getInputStream()).useDelimiter(
+                                "\\A").next();
+
+                    } catch (IOException e) {
+                        Log.e("Panopticon/onResume", "Error reading URL or config ", e);
+                    } catch (OAuthException e) {
+                        Log.e("Panopticon/onResume", "OAuth error", e);
                     }
-                }).execute(regId);
-            }
+                    return "";
+                }
+            }).execute(regId);
         }
 
         FragmentManager fm = getFragmentManager();
@@ -232,33 +206,27 @@ public class PanopticonActivity extends Activity {
                 AlertDialog.Builder ad = new AlertDialog.Builder(this);
                 ad.setTitle(R.string.bc_dialog_title);
                 ad.setMessage(R.string.bc_dialog_body);
-                ad.setPositiveButton(R.string.bc_confirm,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface di, int i) {
-                                String packageName = ZXING_PACKAGE;
-                                Uri uri = Uri
-                                        .parse("https://play.google.com/store/apps/details?id="
-                                                + packageName);
-                                Intent intent = new Intent(Intent.ACTION_VIEW,
-                                        uri);
-                                try {
-                                    startActivity(intent);
-                                } catch (ActivityNotFoundException e) {
-                                    Log.e("PanopticonActivity.onCreate",
-                                            "Google Play Store not present?!");
-                                    finish();
-                                }
-                            }
-                        });
-                ad.setNegativeButton(R.string.bc_reject,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(
-                                    DialogInterface dialogInterface, int i) {
-                                finish();
-                            }
-                        });
+                ad.setPositiveButton(R.string.bc_confirm, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int i) {
+                        String packageName = ZXING_PACKAGE;
+                        Uri uri = Uri.parse(
+                                "https://play.google.com/store/apps/details?id=" + packageName);
+                        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                        try {
+                            startActivity(intent);
+                        } catch (ActivityNotFoundException e) {
+                            Log.e("Panopticon/onResume", "Google Play Store not present?!");
+                            finish();
+                        }
+                    }
+                });
+                ad.setNegativeButton(R.string.bc_reject, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        finish();
+                    }
+                });
                 ad.show();
 
                 return;

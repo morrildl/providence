@@ -30,7 +30,6 @@
             android:theme="@style/android:Theme.Holo.Light" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -41,23 +40,21 @@
             android:label="NewPhotoReceiver" >
             <intent-filter>
                 <action android:name="android.hardware.action.NEW_PICTURE" />
-
                 <data android:mimeType="image/*" />
             </intent-filter>
         </receiver>
         <receiver
-            android:name="dude.morrildl.providence.gcm.GCMBroadcastReceiver"
+            android:name=".gcm.BroadcastReceiver"
             android:permission="com.google.android.c2dm.permission.SEND" >
             <intent-filter>
                 <action android:name="com.google.android.c2dm.intent.RECEIVE" />
                 <action android:name="com.google.android.c2dm.intent.REGISTRATION" />
-
                 <category android:name="dude.morrildl.providence" />
             </intent-filter>
         </receiver>
 
         <service
-            android:name="dude.morrildl.providence.gcm.GCMIntentService"
+            android:name=".gcm.IntentService"
             android:exported="false" />
     </application>
 

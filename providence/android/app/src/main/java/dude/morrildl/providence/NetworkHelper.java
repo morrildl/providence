@@ -125,6 +125,7 @@ public class NetworkHelper {
             if (email == null) {
                 throw new OAuthException("couldn't find a Gmail account");
             }
+            Log.e("booga booga booga", "aud = " + config.getOAuthAudience());
             return GoogleAuthUtil.getToken(context, email,
                     config.getOAuthAudience());
         } catch (IOException e) {

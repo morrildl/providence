@@ -7,7 +7,7 @@ android {
     defaultConfig {
         applicationId "dude.morrildl.providence"
         minSdkVersion 15
-        targetSdkVersion 99
+        targetSdkVersion 19
     }
 
     buildTypes {
@@ -20,5 +20,6 @@ android {
 
 dependencies {
     compile 'com.android.support:support-v4:21.0.3'
-    compile 'com.google.android.gms:play-services:+'
+    compile 'com.google.android.gms:play-services:3.1.+'
+    compile project(':volley')
 }
