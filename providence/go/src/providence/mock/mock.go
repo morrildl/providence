@@ -37,6 +37,7 @@ func MockReader(incoming chan types.Event, outgoing chan types.Event) {
       if err != nil {
         log.Warn("mock.reader", "error parsing form in TTY helper: ", err)
       } else {
+        log.Debug("mock.reader", "form: ", req.Form)
         which := req.Form["w"][0]
         action, _ := strconv.Atoi(req.Form["a"][0])
         c <- types.Event{Which: common.SensorState[which], Action: types.EventCode(action), When: time.Now()}
