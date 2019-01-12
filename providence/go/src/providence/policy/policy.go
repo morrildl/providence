@@ -56,14 +56,6 @@ func parseExclusionIntervals() []timeWindow {
   return windows
 }
 
-/* Generates a random ID. Does not guarantee uniqueness. */
-func GetId() string {
-  // TODO: probably move into db package to guarantee uniqueness
-  buf := make([]byte, 16)
-  io.ReadFull(rand.Reader, buf)
-  return fmt.Sprintf("%x", buf)
-}
-
 /* Looks for low-level events on the incoming channel and applies some
  * heuristics to determine whether they are noteworthy. Will inject
  * higher-level eventCodes (ajar, anomalous) to the outgoing channel as
@@ -72,11 +64,11 @@ func GetId() string {
  * Currently the heuristics are exclusion intervals and 'door is ajar'
  * detection. Should only be registered for low-level events.
  */
-func SensorMonitor(incoming chan types.Event, outgoing chan types.Event) {
+func SensorMonitor(incoming chan types.Event, outgoing chan string) {
   // local structs used in synthesizing human-meaningful events from raw events
   type ajarRuleState struct {
-    when     time.Time
-    lastSend time.Duration
+    event types.Event
+    nextSend time.Time
   }
 
   ajarThreshold := config.Sensor.AjarThreshold * time.Second
@@ -92,15 +84,24 @@ func SensorMonitor(incoming chan types.Event, outgoing chan types.Event) {
     case e := <-incoming:
       now := time.Now()
 
-      // timestamp trips for ajar-detection, and clear on resets
-      if e.Action == types.TRIP {
-        lastTrips[e.Which.ID] = &ajarRuleState{now, ajarThreshold}
-      } else if e.Action == types.RESET {
-        delete(lastTrips, e.Which.ID)
+
+      // record trips for ajar-detection, and clear on resets
+      last, ok := lastTrips[e.SensorID]
+      if e.Reset == nil {
+        if ok {
+          if last.event.EventID != e.EventID {
+            log.Error("policy.SensorMonitor", "multiple extant events for same sensor '"+e.SensorID+"' ('"+e.EventID+"', '"+last.event.EventID+"'")
+            last.event = e
+          }
+        } else {
+          lastTrips[e.SensorID] = ajarRuleState{e, now.Add(ajarThreshold)}
+        }
+      } else if ok {
+        delete(lastTrips, e.SensorID)
       }
 
       // check trips against exclusion intervals for anomalous events
-      if e.Action == types.TRIP {
+      if e.Reset == nil {
         inWindow := false
         if e.Which.Kind != types.MOTION {
           // skip windows and always send motion events, as they are more
@@ -125,20 +126,26 @@ func SensorMonitor(incoming chan types.Event, outgoing chan types.Event) {
           }
         }
         if !inWindow {
-          outgoing <- types.Event{Which: e.Which, Action: types.ANOMALY, When: now, Id: GetId()}
+          lock := common.LockEvent(e.EventID)
+          lock.event.IsAnomalous = true
+          lock.Commit()
+          outgoing <- lock.event.EventID
         }
       }
 
     case <-ticker:
       // once per second, check whether anything is (still) Ajar & (re)transmit if it's time to
-      for which, last := range lastTrips {
-        if time.Since(last.when) > ajarThreshold && time.Since(last.when) > last.lastSend {
-          last.lastSend += resendFrequency
-          outgoing <- types.Event{Which: common.SensorState[which], Action: types.AJAR, When: time.Now(), Id: GetId()}
+      for _, last := range lastTrips {
+        if time.Since(last.event.Trip) > ajarThreshold && now.After(last.nextSend) {
+          last.nextSend.Add(resendFrequency)
+          lock := common.LockEvent(last.event.EventID)
+          lock.event.IsAjar = true
+          lock.Commit()
+          outgoing <- last.event.EventID
         }
       }
     }
   }
 }
 
-var Handler = common.Handler{SensorMonitor, make(chan types.Event, 10), map[types.EventCode]int{types.TRIP: 1, types.RESET: 1}}
+var Handler common.Handler = SensorMonitor

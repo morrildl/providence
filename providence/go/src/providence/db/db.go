@@ -29,15 +29,13 @@ import (
 
 var (
   db                 *sql.DB
-  insertEvent        *sql.Stmt
-  insertEventWithId  *sql.Stmt
+  storeEvent         *sql.Stmt
+  selectEvent        *sql.Stmt
   selectRecentEvents *sql.Stmt
   insertRegId        *sql.Stmt
   updateRegId        *sql.Stmt
   deleteRegId        *sql.Stmt
   selectRegId        *sql.Stmt
-  insertVbof         *sql.Stmt
-  selectVbofMetadata *sql.Stmt
 )
 
 func init() {
@@ -47,48 +45,75 @@ func init() {
   db, err = sql.Open("sqlite3", config.General.DatabasePath)
   if err != nil {
     log.Error("db.package_init", "recorder failed to open ", config.General.DatabasePath, err)
+    panic("recorder failed to open")
   }
 
+  // First, create the tables
+  tx, err := db.Begin()
+  if err != nil {
+    msg := "error creating database tables"
+    log.Error("db.package_init", msg, err)
+    panic(msg)
+  }
+  for _, stmt := range []string{
+    `CREATE TABLE IF NOT EXISTS Events (
+        EventID text not null unique primary key,
+        SensorID text not null,
+        Trip datetime not null,
+        Reset datetime,
+        IsAjar integer not null default false,
+        IsAnomalous integer not null default false,
+        Timestamp datetime not null default(datetime('now')));`,
+    `CREATE TABLE IF NOT EXISTS RegIDs (
+        RegID text not null unique primary key,
+        Timestamp datetime not null default(datetime('now')));`,
+  } {
+    _, err = tx.Exec(stmt)
+    if err != nil {
+      msg := "error executing table create statement"
+      log.Error("db.package_init", msg, err)
+      panic(msg)
+    }
+  }
+  tx.Commit()
+
+
   // Initialize events table prepared statements
-  insertEvent, err = db.Prepare("insert into events (name, value) values (?, ?)")
+  storeEvent, err = db.Prepare(
+    `insert or replace into events
+       (EventID, SensorID, Trip, Reset, IsAjar, IsAnomalous)
+     values (?, ?, ?, ?, ?, ?)`)
   if err != nil {
-    log.Error("db.package_init", "recorder failed to prepare insertEvent", err)
+    log.Error("db.package_init", "recorder failed to prepare storeEvent", err)
   }
-  insertEventWithId, err = db.Prepare("insert into events (name, value, eventid) values (?, ?, ?)")
-  if err != nil {
-    log.Error("db.package_init", "recorder failed to prepare insertEventWithId", err)
-  }
-  selectRecentEvents, err = db.Prepare("select name, value, eventid, timestamp from events where value in (2, 4) and eventid != '-1' order by timestamp desc limit 10")
+  selectRecentEvents, err = db.Prepare(
+    `select EventID, SensorID, Trip, Reset, IsAjar, IsAnomalous from events
+     order by timestamp desc limit 10`)
   if err != nil {
     log.Error("db.package_init", "recorder failed to prepare selectRecentEvents", err)
   }
+  selectEvent, err = db.Prepare(`select EventID, SensorID, Trip, Reset, IsAjar, IsAnomalous from events where EventID=?`)
+  if err != nil {
+    log.Error("db.package_init", "recorder failed to prepare selectEvent", err)
+  }
 
-  // Initialize reg_ids table prepared statements
-  insertRegId, err = db.Prepare("insert or ignore into reg_ids values (?)")
+
+  // Initialize RegIDs table prepared statements
+  insertRegId, err = db.Prepare("insert or ignore into RegIDs values (?)")
   if err != nil {
     log.Error("db.package_init", "regId updater failed to prepare insert", err)
   }
-  updateRegId, err = db.Prepare("update reg_ids set reg_id=? where reg_id=?")
+  updateRegId, err = db.Prepare("update RegIDs set RegID=? where RegID=?")
   if err != nil {
     log.Error("db.package_init", "regId updater failed to prepare update", err)
   }
-  deleteRegId, err = db.Prepare("delete from reg_ids where reg_id=?")
+  deleteRegId, err = db.Prepare("delete from RegIDs where RegID=?")
   if err != nil {
     log.Error("db.package_init", "regId updater failed to prepare delete", err)
   }
-  selectRegId, err = db.Prepare("select reg_id from reg_ids")
+  selectRegId, err = db.Prepare("select RegID from RegIDs")
   if err != nil {
     log.Error("db.package_init", "regId updater failed to prepare select", err)
-  }
-
-  // Initialize vbof_metadata table prepared statements
-  insertVbof, err = db.Prepare("insert into vbof_metadata (vbof_id, type, title) values (?, ?, ?)")
-  if err != nil {
-    log.Error("db.package_init", "vbof updater failed to prepare insert", err)
-  }
-  selectVbofMetadata, err = db.Prepare("select title, type from vbof_metadata where vbof_id=?")
-  if err != nil {
-    log.Error("db.package_init", "vbof updater failed to prepare select", err)
   }
 
   // No defer foo.Close() here since this is package init(); when these go out
@@ -100,12 +125,7 @@ func init() {
  */
 func Recorder(incoming chan types.Event, outgoing chan types.Event) {
   for {
-    event := <-incoming
-    if event.Id == "" {
-      insertEvent.Exec(event.Which.Name, event.Action)
-    } else {
-      insertEventWithId.Exec(event.Which.Name, event.Action, event.Id)
-    }
+    StoreEvent(<-incoming) // ignore error response since it's already logged
   }
 }
 
@@ -215,33 +235,6 @@ func GetRegIds(skip []string) (regIds []string, err error) {
   return rowIds, nil
 }
 
-func GetVbofInfo(vbof string) (mimeType string, title string, err error) {
-  log.Debug("db.GetVbofInfo", "booga", vbof)
-  rows, err := selectVbofMetadata.Query(vbof)
-  if err != nil {
-    log.Error("db.get_vbof", "failed to fetch metadata ", err)
-    return "", "", err
-  }
-  defer rows.Close()
-
-  if rows.Next() {
-    rows.Scan(&mimeType, &title)
-    log.Debug("db.GetVbofInfo", title+" "+mimeType)
-    return title, mimeType, nil
-  }
-  log.Debug("db.GetVbofInfo", "error")
-  return "", "", errors.New("no such vbof")
-}
-
-func StoreVbofInfo(vbof string, mimeType string, title string) (err error) {
-  _, err = insertVbof.Exec(vbof, mimeType, title)
-  if err != nil {
-    log.Warn("db.vbof_inserter", "failed to insert VBOF ", err)
-    return err
-  }
-  return nil
-}
-
 func GetRecentEvents() ([]types.Event, error) {
   rows, err := selectRecentEvents.Query()
   if err != nil {
@@ -252,23 +245,59 @@ func GetRecentEvents() ([]types.Event, error) {
 
   count := 0
   events := make([]types.Event, 10)
-  var which string
-  var action string
-  var timestamp string
-  var eventid string
   for rows.Next() {
-    rows.Scan(&which, &action, &eventid, &timestamp)
-    event := types.Event{}
+    ev := types.Event{}
+    var eventID, sensorID string
+    var trip, reset time.Time
+    var isAjar, isAnomalous bool
+    rows.Scan(&eventID, &sensorID, &trip, &reset, &isAjar, &isAnomalous)
+    event := types.Event{eventID, sensorID, trip, reset, isAjar, isAnomalous}
     events[count] = event
     count += 1
+    if count == 10 {
+      break
+    }
   }
+
   return events[:count], nil
 }
 
-var Handler = common.Handler{
-  Recorder,
-  make(chan types.Event, 10),
-  map[types.EventCode]int{
-    types.TRIP: 1, types.RESET: 1, types.AJAR: 1, types.ANOMALY: 1,
-  },
+func GetEvent(eventID string) (types.Event, error) {
+  rows, err := selectEvent.Query(eventID)
+  if err != nil {
+    log.Error("db.get_recents", "failed to fetch recent rows ", err)
+    return types.Event{}, err
+  }
+  defer rows.Close()
+
+  if !rows.Next() {
+    s := "no result found loading event for '" + eventID + "'"
+    log.Error("db.GetEvent", s)
+    return types.Event{}, errors.New(s)
+  }
+
+  var eventID, sensorID string
+  var trip, reset time.Time
+  var isAjar, isAnomalous bool
+  rows.Scan(&eventID, &sensorID, &trip, &reset, &isAjar, &isAnomalous)
+
+  return types.Event{eventID, sensorID, trip, reset, isAjar, isAnomalous}, nil
 }
+
+func StoreEvent(event types.Event) error {
+  res, err := storeEvent.Exec(event.EventID, event.SensorID, event.Trip, event.Reset, event.IsAjar, event.IsAnomalous)
+  if err != nil {
+    log.Error("db.StoreEvent", "failed inserting or updating event '" + event.EventID + "'", err)
+    return err
+  }
+  numRows, err := res.RowsAffected()
+  if numRows > 1 {
+    log.Warning("db.StoreEvent", "multiple rows affected by store operation for '" + event.EventID + "'")
+  }
+  if numRows < 1 {
+    log.Warning("db.StoreEvent", "success but 0 rows affected by store operation for '" + event.EventID + "'")
+  }
+  return nil
+}
+
+var Handler common.Handler = Recorder

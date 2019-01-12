@@ -54,4 +54,4 @@ func MockReader(incoming chan types.Event, outgoing chan types.Event) {
   }
 }
 
-var Handler = common.Handler{MockReader, make(chan types.Event, 10), map[types.EventCode]int{}} // no registrations
+var Handler = MockReader

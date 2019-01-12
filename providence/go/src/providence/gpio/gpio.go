@@ -142,7 +142,7 @@ func binaryMonitor(path string, outgoing chan types.Event) {
     // and we'll schedule a new one starting from now.
     timer = time.AfterFunc(DEBOUNCE_BINARY*time.Millisecond, func() {
       lastSent = state
-      outgoing <- types.Event{Which: common.SensorState[path], Action: action, When: time.Now()}
+      common.CommitEvent(common.CreateEvent())
     })
   }
 }
@@ -158,6 +158,7 @@ func ringerMonitor(path string, outgoing chan types.Event) {
   }
 
   logicalState := RESET
+  pendingEventId := ""
   timer := time.AfterFunc(0, func() {})
 
   for {
@@ -169,7 +170,9 @@ func ringerMonitor(path string, outgoing chan types.Event) {
     // the TRIP event immediately
     if rawState == TRIP && logicalState == RESET {
       logicalState = TRIP
-      outgoing <- types.Event{Which: common.SensorState[path], Action: types.TRIP, When: time.Now()}
+      event := common.CreateEvent()
+      pendingEventID = event.EventID
+      common.CommitEvent(event)
     }
 
     // when we see sensor go back to RESET, it could be the end of the ringing
@@ -180,8 +183,12 @@ func ringerMonitor(path string, outgoing chan types.Event) {
     // action, and we'll schedule a new one next it RESETs.
     if rawState == RESET && logicalState == TRIP {
       timer = time.AfterFunc(DEBOUNCE_RINGER*time.Millisecond, func() {
+        event := common.LockEvent(pendingEventID)
+        event.Reset = time.Now()
+        common.CommitEvent(event)
+
         logicalState = RESET
-        outgoing <- types.Event{Which: common.SensorState[path], Action: types.RESET, When: time.Now()}
+        pendingEventID = ""
       })
     }
   }
@@ -195,19 +202,14 @@ func ringerMonitor(path string, outgoing chan types.Event) {
  * any message types or it will eventually deadlock when the channel buffer
  * fills.
  */
-func Reader(incoming chan types.Event, outgoing chan types.Event) {
+func Handler(updates chan types.Event) {
   for path, _ := range config.Sensor.Names {
     log.Debug("gpio.Reader", "starting monitor for "+path)
-    var err error
     if config.Sensor.Types[path] == types.MOTION {
-      go ringerMonitor(path, outgoing)
+      // TODO: hook in modalities properly
+      go ringerMonitor(path)
     } else {
-      go binaryMonitor(path, outgoing)
-    }
-    if err != nil {
-      log.Error("gpio.Reader", "error opening ", path, ", skipping ", err)
+      go binaryMonitor(path)
     }
   }
 }
-
-var Handler = common.Handler{Reader, make(chan types.Event, 10), map[types.EventCode]int{}}

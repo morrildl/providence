@@ -36,21 +36,20 @@ func main() {
 
   // start up the handlers as goroutines
   events := make(chan types.Event, 10)
-  for _, h := range handlers {
-    go h.Func(h.Chan, events)
+  listeners := make([]chan types.Event, len(handlers))
+  for i, h := range handlers {
+    listeners[i] = make(chan types.Event, 10)
+    go h(listeners[i], events)
   }
 
   log.Status("main.dispatcher", "running")
   log.Debug("main.dispatcher", "running in debug mode")
-  // loop forever, sending generated events to the listeners who want to hear them
+
   for {
     evt := <-events
-    log.Status("main.dispatcher", "processing event for "+evt.Which.Name+" "+evt.Description())
-    for _, h := range handlers {
-      _, ok := h.Events[evt.Action]
-      if ok {
-        h.Chan <- evt
-      }
+    log.Status("main.dispatcher", "processing event for "+evt.EventID+" "+evt.Description())
+    for _, l := range listeners {
+      l <- evt
     }
   }
 }

@@ -166,11 +166,15 @@ func Monitor(incoming chan types.Event, outgoing chan types.Event) {
 
     // New monitoring event from the dispatcher.
     case ev := <-incoming:
+      if !ev.IsAnomalous {
+        log.Debug("camera.handler", "skipping mundane event '" + ev.EventID "'")
+        break
+      }
       log.Debug("camera.handler", "processing event ", ev)
-      configs, ok := cameraConfigs[ev.Which.ID]
+      configs, ok := cameraConfigs[ev.SensorID]
       if ok {
         for _, cfg := range configs {
-          pending = append(pending, configTracker{ev.Which.ID, ev.Id, cfg.Url, cfg.Interval, cfg.Count, cfg.Interval})
+          pending = append(pending, configTracker{ev.SensorID, ev.EventID, cfg.Url, cfg.Interval, cfg.Count, cfg.Interval})
         }
       } /* else { } // ok == false is fine, it just means no camera is configured for that sensor */
     }
@@ -194,4 +198,4 @@ func init() {
   startPhotoPurger()
 }
 
-var Handler = common.Handler{Monitor, make(chan types.Event, 10), map[types.EventCode]int{types.AJAR: 1, types.ANOMALY: 1}}
+var Handler common.Handler = Monitor

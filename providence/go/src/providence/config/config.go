@@ -89,8 +89,6 @@ type ExclusionIntervalConfig struct {
 type SensorConfig struct {
   Mode               string
   MockTTY            bool
-  Names              map[string]string
-  Types              map[string]types.SensorType
   TTYPath            string
   AjarThreshold      time.Duration
   ExclusionIntervals []ExclusionIntervalConfig
@@ -99,12 +97,12 @@ type SensorConfig struct {
 var Sensor = SensorConfig{
   Mode:               "TTY",
   MockTTY:            false,
-  Names:              make(map[string]string),
-  Types:              make(map[string]types.SensorType),
   TTYPath:            "/dev/ttyUSB0",
   AjarThreshold:      30 * time.Second,
   ExclusionIntervals: make([]ExclusionIntervalConfig, 0),
 }
+
+var Sensors = types.Sensors
 
 type CameraSpecConfig struct {
   Url      string
@@ -187,6 +185,7 @@ func init() {
     Server   *ServerConfig
     GCM      *GCMConfig
     Sensor   *SensorConfig
+    Sensors  map[string]types.Sensor
     Photo    *PhotoConfig
     UserAuth *UserAuthConfig
     URLPath  *URLPathConfig
@@ -200,6 +199,7 @@ func init() {
     Server:   &Server,
     GCM:      &GCM,
     Sensor:   &Sensor,
+    Sensors:  &Sensors,
     Photo:    &Photo,
     UserAuth: &UserAuth,
     URLPath:  &URLPath,

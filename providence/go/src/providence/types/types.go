@@ -1,4 +1,4 @@
-/* Copyright © 2012 Dan Morrill
+/* Copyright © 2013 Dan Morrill
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,71 +16,104 @@
 package types
 
 import (
+  "crypto/rand"
   "time"
 )
 
-type SensorType int
-
+type SensorModality int
 const (
-  WINDOW SensorType = iota
-  DOOR
+  NORMALLY_OPEN SensorModality = iota
+  NORMALLY_CLOSED
+  RINGING
+)
+
+type SensorSubject int
+const (
+  DOOR SensorSubject = iota
+  WINDOW
   MOTION
 )
 
-type Sensor struct {
-  Name string
-  ID   string
-  Kind SensorType
-}
-
-func (sensor Sensor) KindName() string {
-  return map[SensorType]string{
-    WINDOW: "Window",
-    DOOR:   "Door",
-    MOTION: "Motion Sensor",
-  }[sensor.Kind]
-}
-
-type EventCode int
-
-const (
-  TRIP EventCode = iota
-  RESET
-  AJAR
-  AJAR_RESOLVED
-  ANOMALY
-)
-
 type Event struct {
-  Which  Sensor
-  Action EventCode
-  When   time.Time
-  Id     string
+  EventID string
+  SensorID string
+  Trip time.Time
+  Reset *time.Time
+  IsAjar bool
+  IsAnomalous bool
 }
 
-/* Returns a sensor-type-specific human string for an event code.  */
-func (event Event) Description() string {
-  return map[SensorType]map[EventCode]string{
-    WINDOW: map[EventCode]string{
-      TRIP:          "Opened",
-      RESET:         "Closed",
-      AJAR:          "Ajar",
-      AJAR_RESOLVED: "Closed",
-      ANOMALY:       "Unexpectedly Opened",
-    },
-    DOOR: map[EventCode]string{
-      TRIP:          "Opened",
-      RESET:         "Closed",
-      AJAR:          "Ajar",
-      AJAR_RESOLVED: "Closed",
-      ANOMALY:       "Unexpectedly Opened",
-    },
-    MOTION: map[EventCode]string{
-      TRIP:          "Detected Motion",
-      RESET:         "Still",
-      AJAR:          "Ongoing Motion",
-      AJAR_RESOLVED: "Still",
-      ANOMALY:       "Unexpected Motion",
-    },
-  }[event.Which.Kind][event.Action]
+type Sensor struct {
+  SensorID string
+  Name string
+  Modality SensorModality
+  Subject SensorSubject
+}
+
+func (s Sensor) SubjectName() string {
+  switch s.Subject {
+  case DOOR:
+    return "Door"
+  case WINDOW:
+    return "Window"
+  case MOTION:
+    return "Motion Sensor"
+  }
+}
+
+var Sensors = make(map[string]Sensor)
+
+func NewEvent(which string) Event {
+  s, ok := Sensors[which]
+  if !ok {
+    return Event{}
+  }
+  // TODO: do something to guarantee uniqueness?
+  buf := make([]byte, 16)
+  io.ReadFull(rand.Reader, buf)
+  return Event{
+    EventID: fmt.Sprintf("%x", buf),
+    Trip: time.Now(),
+    SensorID: which,
+  }
+}
+
+func (ev Event) Description() string {
+  sensor, ok := Sensors[ev.SensorID]
+  if !ok {
+    log.Error("types.Event.Description", "called on event with bogus sensor '" + ev.SensorID +"'")
+    return ""
+  }
+
+  var desc string
+  switch {
+  case ev.Reset != nil:
+    if sensor.Subject == types.MOTION {
+      desc = "Still"
+    } else {
+      desc = "Closed"
+    }
+  case ev.IsAjar:
+    if sensor.Subject == types.MOTION {
+      desc = "Motion"
+    } else {
+      desc = "Ajar"
+    }
+  default:
+    if sensor.Subject == types.MOTION {
+      desc = "Motion"
+    } else {
+      desc = "Closed"
+    }
+  }
+  return fmt.Sprintf("%v %v", sensor.Name, desc)
+}
+
+func (ev Event) Sensor() Sensor {
+  sensor, ok := Sensors[ev.SensorID]
+  if !ok {
+    log.Error("types.Event.Sensor()", "called on event with bogus sensor '" + ev.SensorID + "'")
+    return Sensor{}
+  }
+  return sensor
 }

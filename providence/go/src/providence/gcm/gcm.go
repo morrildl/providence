@@ -31,21 +31,14 @@ import (
   "providence/types"
 )
 
-type ShareUrlRequest struct {
-  Url  string
-  Skip []string
-}
-
 type payload struct {
-  EventCode      string
-  EventId        string
-  EventName      string
-  WhichId        string
-  WhichName      string
-  SensorType     string
-  SensorTypeName string
-  When           time.Time
-  Url            string
+  EventID          string
+  EventDescription string
+  EventTrip        time.Time
+  IsAjar           bool
+  SensorName       string
+  SensorType       string
+  SensorTypeName   string
 }
 type request struct {
   data payload
@@ -181,14 +174,19 @@ func Escalator(incoming chan types.Event, outgoing chan types.Event) {
 
     // New monitoring event from the dispatcher.
     case ev := <-incoming:
+      if !ev.IsAjar && !ev.IsAnomalous {
+        log.Debug("gcm.Escalator", "skipping mundane event '" + ev.EventID + "'")
+        break
+      }
+      sensor := ev.Sensor()
       gcmRequestSink <- request{
         payload{ // GCM only supports strings so we can't be very typesafe here
-          strconv.Itoa(int(ev.Action)), ev.Id, ev.Description(), ev.Which.ID, ev.Which.Name,
-          strconv.Itoa(int(ev.Which.Kind)), ev.Which.KindName(), ev.When, ""},
+          ev.EventID, ev.Description(), ev.Trip, ev.IsAjar, sensor.Name,
+          strconv.Itoa(int(sensor.Subject)), sensor.SubjectName()))},
         []string{},
       }
     }
   }
 }
 
-var Handler = common.Handler{Escalator, make(chan types.Event, 10), map[types.EventCode]int{types.AJAR: 1, types.ANOMALY: 1}}
+var Handler common.Handler = Escalator
